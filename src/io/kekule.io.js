@@ -239,9 +239,9 @@ Kekule.IO.ChemDataReader = Class.create(ObjectEx,
 /** @lends Kekule.IO.ChemDataReader# */
 {
 	/** @constructs */
-	initialize: function($super, options)
+	initialize: function(/*$super, */options)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 	},
 	/** @private */
 	CLASS_NAME: 'Kekule.IO.ChemDataReader',
@@ -340,9 +340,9 @@ Kekule.IO.ChemDataWriter = Class.create(ObjectEx,
 	/** @private */
 	CLASS_NAME: 'Kekule.IO.ChemDataWriter',
 	/** @constructs */
-	initialize: function($super, options)
+	initialize: function(/*$super, */options)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 	},
 	/*
 	 * Read document object of {@link Kekule.ChemDocument} and write it to proper data form.
@@ -1240,7 +1240,8 @@ Kekule.IO.loadTypedData = function(content, mimeType, url, options)
 		return result;
 	}
 	*/
-	var formatId = Kekule.IO.DataFormatsManager.findFormatId(mimeType, mimeType? null: fileExt);
+	//var formatId = Kekule.IO.DataFormatsManager.findFormatId(mimeType, mimeType? null: fileExt);
+	var formatId = Kekule.IO.DataFormatsManager.findFormatId(mimeType || null, fileExt);
 	var result;
 	if (formatId)
 		result = Kekule.IO.loadFormatData(content, formatId, options);
@@ -1276,7 +1277,7 @@ Kekule.IO.loadTypedData = function(content, mimeType, url, options)
  * Load chem object from a File object.
  * Note this function relies on FileApi support.
  * @param {File} file
- * @param {Function} callback Callback function when the file is loaded. Has two params (chemObj, success).
+ * @param {Function} callback Callback function when the file is loaded. Has two params (chemObj, success, srcData).
  * @param {String} formatId If not set, format will be get from file name automatically.
  * @param {Hash} options Additional options to read data. Different data format may have different options.
  */
@@ -1319,7 +1320,7 @@ Kekule.IO.loadFileData = function(file, callback, formatId, options)
 				}
 				//var success = !!chemObj;
 				var success = (chemObj !== false);
-				callback(chemObj, success);
+				callback(chemObj, success, content);
 			};
 
 			if (isBinary)
@@ -1465,7 +1466,8 @@ Kekule.IO.saveTypedData = function(chemObj, mimeType, urlOrFileExt, options)
 		*/
 	}
 
-	var formatId = Kekule.IO.DataFormatsManager.findFormatId(mimeType, mimeType? null: fileExt);
+	//var formatId = Kekule.IO.DataFormatsManager.findFormatId(mimeType, mimeType? null: fileExt);
+	var formatId = Kekule.IO.DataFormatsManager.findFormatId(mimeType || null, fileExt);
 	var result;
 	if (formatId)
 		result = Kekule.IO.saveFormatData(chemObj, formatId, options);

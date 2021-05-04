@@ -41,9 +41,9 @@ Kekule.ChemObjOperation.Base = Class.create(Kekule.Operation,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.Base',
 	/** @constructs */
-	initialize: function($super, chemObj, editor)
+	initialize: function(/*$super, */chemObj, editor)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this.setTarget(chemObj);
 		if (editor)
 			this.setEditor(editor);
@@ -110,9 +110,9 @@ Kekule.ChemObjOperation.ChangeClass = Class.create(Kekule.ChemObjOperation.Base,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.ChangeClass',
 	/** @constructs */
-	initialize: function($super, chemObj, newClass, editor)
+	initialize: function(/*$super, */chemObj, newClass, editor)
 	{
-		$super(chemObj, editor);
+		this.tryApplySuper('initialize', [chemObj, editor])  /* $super(chemObj, editor) */;
 		if (newClass)
 			this.setNewClass(newClass);
 	},
@@ -177,9 +177,9 @@ Kekule.ChemObjOperation.Modify = Class.create(Kekule.ChemObjOperation.Base,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.Modify',
 	/** @constructs */
-	initialize: function($super, chemObj, newPropValues, editor)
+	initialize: function(/*$super, */chemObj, newPropValues, editor)
 	{
-		$super(chemObj, editor);
+		this.tryApplySuper('initialize', [chemObj, editor])  /* $super(chemObj, editor) */;
 		if (newPropValues)
 			this.setNewPropValues(newPropValues);
 	},
@@ -259,9 +259,9 @@ Kekule.ChemObjOperation.ModifyHashProp = Class.create(Kekule.ChemObjOperation.Ba
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.ModifyHashProp',
 	/** @constructs */
-	initialize: function($super, chemObj, propName, newPropValue, editor)
+	initialize: function(/*$super, */chemObj, propName, newPropValue, editor)
 	{
-		$super(chemObj, editor);
+		this.tryApplySuper('initialize', [chemObj, editor])  /* $super(chemObj, editor) */;
 		if (propName)
 			this.setPropName(propName);
 		if (newPropValue)
@@ -310,7 +310,8 @@ Kekule.ChemObjOperation.ModifyHashProp = Class.create(Kekule.ChemObjOperation.Ba
 		var propName = this.getPropName();
 		var oldValue = this.getOldPropValue();
 		var nowValue = obj.getPropValue(propName);
-		var reverseValue = Object.extend(Object.extend({}, nowValue), oldValue, !true);
+		//var reverseValue = Object.extend(Object.extend({}, nowValue), oldValue, !true);
+		var reverseValue = oldValue;
 		var valueMap = {};
 		valueMap[propName] = reverseValue;
 
@@ -349,9 +350,9 @@ Kekule.ChemObjOperation.MoveTo = Class.create(Kekule.ChemObjOperation.Base,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.MoveTo',
 	/** @constructs */
-	initialize: function($super, chemObj, newCoord, coordMode, useAbsBaseCoord, editor)
+	initialize: function(/*$super, */chemObj, newCoord, coordMode, useAbsBaseCoord, editor)
 	{
-		$super(chemObj, editor);
+		this.tryApplySuper('initialize', [chemObj, editor])  /* $super(chemObj, editor) */;
 		if (newCoord)
 			this.setNewCoord(newCoord);
 		this.setCoordMode(coordMode || Kekule.CoordMode.COORD2D);
@@ -382,6 +383,7 @@ Kekule.ChemObjOperation.MoveTo = Class.create(Kekule.ChemObjOperation.Base,
 				*/
 				if (obj.setAbsBaseCoord)
 				{
+					// console.log('set coord', obj.id, coord);
 					obj.setAbsBaseCoord(coord, coordMode, this.getAllowCoordBorrow());
 					success = true;
 				}
@@ -460,9 +462,9 @@ Kekule.ChemObjOperation.MoveAndResize = Class.create(Kekule.ChemObjOperation.Mov
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.MoveAndResize',
 	/** @constructs */
-	initialize: function($super, chemObj, newDimension, newCoord, coordMode, useAbsCoord, editor)
+	initialize: function(/*$super, */chemObj, newDimension, newCoord, coordMode, useAbsCoord, editor)
 	{
-		$super(chemObj, newCoord, coordMode, useAbsCoord, editor);
+		this.tryApplySuper('initialize', [chemObj, newCoord, coordMode, useAbsCoord, editor])  /* $super(chemObj, newCoord, coordMode, useAbsCoord, editor) */;
 	},
 	/** @private */
 	initProperties: function()
@@ -495,9 +497,9 @@ Kekule.ChemObjOperation.MoveAndResize = Class.create(Kekule.ChemObjOperation.Mov
 			return null;
 	},
 	/** @private */
-	doExecute: function($super)
+	doExecute: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('doExecute')  /* $super() */;
 		var obj = this.getTarget();
 		if (!this.getOldDimension())
 		{
@@ -507,11 +509,170 @@ Kekule.ChemObjOperation.MoveAndResize = Class.create(Kekule.ChemObjOperation.Mov
 			this.setObjSize(this.getTarget(), this.getNewDimension(), this.getCoordMode());
 	},
 	/** @private */
-	doReverse: function($super)
+	doReverse: function(/*$super*/)
 	{
 		if (this.getOldDimension())
 			this.setObjSize(this.getTarget(), this.getOldDimension(), this.getCoordMode());
-		$super();
+		this.tryApplySuper('doReverse')  /* $super() */;
+	}
+});
+
+/**
+ * Operation of changing a chemObject's coord.
+ * @class
+ * @augments Kekule.ChemObjOperation.Base
+ *
+ * @param {Array} objCoordAndSizeInfo
+ * @param {Int} coordMode
+ * @param {Bool} useAbsCoord
+ *
+ * @param {Array} objCoordAndSizeInfo A array of all moved/resized objects infos. Each item should include fields: {obj, oldCoord, newCoord, oldDimension, newDimension}
+ * @param {Int} coordMode
+ * @param {Bool} useAbsCoord
+ * @param {Bool} DisableIndirectCoord Whether disable indirect coord during moving object, preventing potential coord errors.
+ */
+Kekule.ChemObjOperation.MoveAndResizeObjs = Class.create(Kekule.ChemObjOperation.Base,
+/** @lends Kekule.ChemObjOperation.MoveAndResizeObjs# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemObjOperation.MoveAndResizeObjs',
+	/** @constructs */
+	initialize: function(/*$super, */objCoordAndSizeInfo, coordMode, useAbsCoord, editor)
+	{
+		this.tryApplySuper('initialize', [null, editor])  /* $super(null, editor) */;
+		if (objCoordAndSizeInfo)
+			this.setObjCoordAndSizeInfo(objCoordAndSizeInfo);
+		this.setCoordMode(coordMode || Kekule.CoordMode.COORD2D);
+		this.setUseAbsCoord(!!useAbsCoord);
+		this.setPropStoreFieldValue('childOperations', []);
+	},
+	/** @private */
+	initProperties: function()
+	{
+		this.defineProp('objCoordAndSizeInfo', {'dataType': DataType.ARRAY, 'serializable': false});
+		this.defineProp('coordMode', {'dataType': DataType.INT});
+		this.defineProp('useAbsCoord', {'dataType': DataType.BOOL});
+		this.defineProp('disableIndirectCoord', {'dataType': DataType.BOOL});
+
+		this.defineProp('childOperations', {'dataType': DataType.ARRAY, /*'setter': null,*/ 'serializable': false});  // private
+		this.defineProp('indirectCoordObjs', {'dataType': DataType.ARRAY, 'serializable': false});  // private
+	},
+	/** @private */
+	_setEnableIndirectCoordOfObjs: function(objs, enabled)
+	{
+		if (!objs)
+			return;
+		for (var i = 0, l = objs.length; i < l; ++i)
+		{
+			//console.log('set indirect enabled', objs[i].id, enabled);
+			objs[i].setEnableIndirectCoord(enabled);
+		}
+	},
+	/** @private */
+	_prepareIndirectCoordObjs: function(childOpers)
+	{
+		var disableIndirectCoord = this.getDisableIndirectCoord();
+		var indirectCoordObjs = [];
+		// try disable indirect coord first
+		if (disableIndirectCoord)
+		{
+			for (var i = 0, l = childOpers.length; i < l; ++i)
+			{
+				var oper = childOpers[i];
+				if (oper && oper instanceof Kekule.ChemObjOperation.MoveAndResize)
+				{
+					var target = oper.getTarget();
+					if (target.hasProperty('enableIndirectCoord') && target.getEnableIndirectCoord())
+					{
+						target.setEnableIndirectCoord(false);
+						indirectCoordObjs.push(target);
+					}
+				}
+			}
+		}
+		this.setIndirectCoordObjs(indirectCoordObjs);
+	},
+	/** @private */
+	_prepareExecute: function()
+	{
+		var childOpers = this.getChildOperations();
+		if (!childOpers.length)  // child move operation is empty, preparing new ones. Otherwise use the exisiting ones.
+		{
+			childOpers.length = 0;  // clear first
+			var objInfos = this.getObjCoordAndSizeInfo();
+			for (var i = 0, l = objInfos.length; i < l; ++i)
+			{
+				var info = objInfos[i];
+				var obj = info.obj;
+				// create child move and resize operation
+				var oper = new Kekule.ChemObjOperation.MoveAndResize(obj, info.newDimension, info.newCoord, this.getCoordMode(), this.getUseAbsCoord(), this.getEditor());
+				oper.setAllowCoordBorrow(this.getAllowCoordBorrow());
+				if (info.oldDimension)
+					oper.setOldDimension(info.oldDimension);
+				if (info.oldCoord)
+					oper.setOldCoord(info.oldCoord);
+				childOpers.push(oper);
+				/*
+				if (disableIndirectCoord && obj.hasProperty('enableIndirectCoord'))
+				{
+					obj.setEnableIndirectCoord(false);
+					indirectCoordObjs.push(obj);
+				}
+				*/
+			}
+		}
+		this._prepareIndirectCoordObjs(childOpers);
+	},
+	/** @private */
+	_prepareReverse: function()
+	{
+		if (this.getDisableIndirectCoord())
+		{
+			if (!this.getIndirectCoordObjs())
+				this._prepareIndirectCoordObjs(this.getChildOperations());
+			this._setEnableIndirectCoordOfObjs(this.getIndirectCoordObjs(), false);
+		}
+	},
+	/** @private */
+	_doneMoveAndResize: function()
+	{
+		this._setEnableIndirectCoordOfObjs(this.getIndirectCoordObjs(), true);
+	},
+	/** @private */
+	doExecute: function(/*$super*/)
+	{
+		this.tryApplySuper('doExecute')  /* $super() */;
+		try
+		{
+			this._prepareExecute();
+			var opers = this.getChildOperations();
+			for (var i = 0, l = opers.length; i < l; ++i)
+			{
+				opers[i].execute();
+			}
+		}
+		finally
+		{
+			this._doneMoveAndResize();
+		}
+	},
+	/** @private */
+	doReverse: function(/*$super*/)
+	{
+		try
+		{
+			this._prepareReverse();
+			var opers = this.getChildOperations();
+			for (var i = opers.length - 1; i >= 0; --i)
+			{
+				opers[i].reverse();
+			}
+		}
+		finally
+		{
+			this._doneMoveAndResize();
+		}
+		this.tryApplySuper('doReverse')  /* $super() */;
 	}
 });
 
@@ -534,9 +695,9 @@ Kekule.ChemObjOperation.StickTo = Class.create(Kekule.ChemObjOperation.Base,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.StickTo',
 	/** @constructs */
-	initialize: function($super, node, stickTarget, editor)
+	initialize: function(/*$super, */node, stickTarget, editor)
 	{
-		$super(node, editor);
+		this.tryApplySuper('initialize', [node, editor])  /* $super(node, editor) */;
 		if (stickTarget)
 			this.setStickTarget(stickTarget);
 	},
@@ -552,9 +713,9 @@ Kekule.ChemObjOperation.StickTo = Class.create(Kekule.ChemObjOperation.Base,
 		return node && node.getAllowCoordStickTo && node.getAllowCoordStickTo(this.getStickTarget());
 	},
 	/** @private */
-	doExecute: function($super)
+	doExecute: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('doExecute')  /* $super() */;
 		var node = this.getTarget();
 		if (this._canExecute(node))
 		{
@@ -564,11 +725,11 @@ Kekule.ChemObjOperation.StickTo = Class.create(Kekule.ChemObjOperation.Base,
 		}
 	},
 	/** @private */
-	doReverse: function($super)
+	doReverse: function(/*$super*/)
 	{
 		var node = this.getTarget();
 		node.setCoordStickTarget(this.getOldStickTarget());
-		$super();
+		this.tryApplySuper('doReverse')  /* $super() */;
 	}
 });
 /**
@@ -616,9 +777,9 @@ Kekule.ChemObjOperation.Add = Class.create(Kekule.ChemObjOperation.Base,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.Add',
 	/** @constructs */
-	initialize: function($super, chemObj, parentObj, refSibling, editor)
+	initialize: function(/*$super, */chemObj, parentObj, refSibling, editor)
 	{
-		$super(chemObj, editor);
+		this.tryApplySuper('initialize', [chemObj, editor])  /* $super(chemObj, editor) */;
 		this.setParentObj(parentObj);
 		this.setRefSibling(refSibling);
 	},
@@ -687,9 +848,9 @@ Kekule.ChemObjOperation.Remove = Class.create(Kekule.ChemObjOperation.Base,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemObjOperation.Remove',
 	/** @constructs */
-	initialize: function($super, chemObj, parentObj, refSibling, editor)
+	initialize: function(/*$super, */chemObj, parentObj, refSibling, editor)
 	{
-		$super(chemObj, editor);
+		this.tryApplySuper('initialize', [chemObj, editor])  /* $super(chemObj, editor) */;
 		this.setParentObj(parentObj);
 		this.setRefSibling(refSibling);
 	},
@@ -855,7 +1016,7 @@ Kekule.ChemStructOperation.RemoveNode = Class.create(Kekule.ChemObjOperation.Rem
 		this.defineProp('linkedConnectorInfos', {'dataType': DataType.ARRAY, 'serializable': false});
 	},
 	/** @private */
-	doExecute: function($super)
+	doExecute: function(/*$super*/)
 	{
 		/*
 		if (!this.getLinkedConnectors())
@@ -871,18 +1032,27 @@ Kekule.ChemStructOperation.RemoveNode = Class.create(Kekule.ChemObjOperation.Rem
 			for (var i = 0, l = linkedConnectors.length; i < l; ++i)
 			{
 				var connector = linkedConnectors[i];
+				// if node is a subgroup, it may not directly linked to connector, we should find the direct linked child node
+				var actualLinkedNode = node.getActualConnectedObjToConnector(connector) || node;
 				var nodeIndex = connector.indexOfConnectedObj(node);
-				var refSibling = connector.getConnectedObjAt(nodeIndex + 1) || null;
+				var refSibling;
+				if (nodeIndex < 0)
+					refSibling = null;
+				else
+					refSibling = connector.getConnectedObjAt(nodeIndex + 1) || null;
 				info.push({'connector': connector, 'refSibling': refSibling});
+				if (actualLinkedNode !== node)
+					info.actualLinkedNode = actualLinkedNode;
+				//console.log('execute', connector.getId(), node.getId(), actualLinkedNode && actualLinkedNode.getId(), refSibling && refSibling.getId());
 			}
 			this.setLinkedConnectorInfos(info);
 		}
-		$super()
+		this.tryApplySuper('doExecute')  /* $super() */
 	},
 	/** @private */
-	doReverse: function($super)
+	doReverse: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('doReverse')  /* $super() */;
 		/*
 		var linkedConnectors = this.getLinkedConnectors();
 
@@ -907,8 +1077,10 @@ Kekule.ChemStructOperation.RemoveNode = Class.create(Kekule.ChemObjOperation.Rem
 			{
 				var connector = linkedConnectorInfos[i].connector;
 				var refSibling = linkedConnectorInfos[i].refSibling;
+				var actualLinkedNode = linkedConnectorInfos[i].actualLinkedNode || node;
 				//node._doAppendLinkedConnector(connector);
-				connector.insertConnectedObjBefore(node, refSibling);
+				//connector.insertConnectedObjBefore(node, refSibling);
+				connector.insertConnectedObjBefore(actualLinkedNode, refSibling);
 			}
 		}
 	}
@@ -925,9 +1097,9 @@ Kekule.ChemStructOperation.ReplaceNode = Class.create(Kekule.Operation,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.ReplaceNode',
 	/** @constructs */
-	initialize: function($super, oldNode, newNode, parentObj, editor)
+	initialize: function(/*$super, */oldNode, newNode, parentObj, editor)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this.setOldNode(oldNode);
 		this.setNewNode(newNode);
 		this.setParentObj(parentObj);
@@ -1021,9 +1193,9 @@ Kekule.ChemStructOperation.AddConnector = Class.create(Kekule.ChemObjOperation.A
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.AddConnector',
 	/** @constructs */
-	initialize: function($super, chemObj, parentObj, refSibling, connectedObjs, editor)
+	initialize: function(/*$super, */chemObj, parentObj, refSibling, connectedObjs, editor)
 	{
-		$super(chemObj, parentObj, refSibling, editor);
+		this.tryApplySuper('initialize', [chemObj, parentObj, refSibling, editor])  /* $super(chemObj, parentObj, refSibling, editor) */;
 		//this.setParentObj(parentObj);
 		//this.setRefSibling(refSibling);
 		this.setConnectedObjs(connectedObjs);
@@ -1034,9 +1206,9 @@ Kekule.ChemStructOperation.AddConnector = Class.create(Kekule.ChemObjOperation.A
 		this.defineProp('connectedObjs', {'dataType': DataType.ARRAY, 'serializable': false});
 	},
 	/** @private */
-	doExecute: function($super)
+	doExecute: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('doExecute')  /* $super() */;
 		var connObjs = Kekule.ArrayUtils.clone(this.getConnectedObjs());
 		if (connObjs && connObjs.length)
 		{
@@ -1044,9 +1216,9 @@ Kekule.ChemStructOperation.AddConnector = Class.create(Kekule.ChemObjOperation.A
 		}
 	},
 	/** @private */
-	doReverse: function($super)
+	doReverse: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('doReverse')  /* $super() */;
 	}
 });
 
@@ -1069,18 +1241,18 @@ Kekule.ChemStructOperation.RemoveConnector = Class.create(Kekule.ChemObjOperatio
 		this.defineProp('connectedObjs', {'dataType': DataType.ARRAY, 'serializable': false});
 	},
 	/** @private */
-	doExecute: function($super)
+	doExecute: function(/*$super*/)
 	{
 		if (!this.getConnectedObjs())
 		{
 			this.setConnectedObjs(Kekule.ArrayUtils.clone(this.getTarget().getConnectedObjs()));
 		}
-		$super()
+		this.tryApplySuper('doExecute')  /* $super() */
 	},
 	/** @private */
-	doReverse: function($super)
+	doReverse: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('doReverse')  /* $super() */;
 		var connObjs = this.getConnectedObjs();
 		if (connObjs && connObjs.length)
 		{
@@ -1109,9 +1281,9 @@ Kekule.ChemStructOperation.MergeNodesBase = Class.create(Kekule.ChemObjOperation
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.MergeNodesBase',
 	/** @constructs */
-	initialize: function($super, target, dest, enableStructFragmentMerge, editor)
+	initialize: function(/*$super, */target, dest, enableStructFragmentMerge, editor)
 	{
-		$super(target, editor);
+		this.tryApplySuper('initialize', [target, editor])  /* $super(target, editor) */;
 		this.setDest(dest);
 		this.setEnableStructFragmentMerge(enableStructFragmentMerge || false);
 		this._refSibling = null;
@@ -1166,9 +1338,9 @@ Kekule.ChemStructOperation.MergeNodes = Class.create(Kekule.ChemStructOperation.
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.MergeNodes',
 	/** @constructs */
-	initialize: function($super, target, dest, enableStructFragmentMerge, editor)
+	initialize: function(/*$super, */target, dest, enableStructFragmentMerge, editor)
 	{
-		$super(target, dest, enableStructFragmentMerge, editor);
+		this.tryApplySuper('initialize', [target, dest, enableStructFragmentMerge, editor])  /* $super(target, dest, enableStructFragmentMerge, editor) */;
 		this._refSibling = null;
 		this._nodeParent = null;
 		this._structFragmentMergeOperation = null;
@@ -1431,9 +1603,9 @@ Kekule.ChemStructOperation.MergeNodesPreview = Class.create(Kekule.ChemStructOpe
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.MergeNodesPreview',
 	/** @constructs */
-	initialize: function($super, target, dest, enableStructFragmentMerge, editor)
+	initialize: function(/*$super, */target, dest, enableStructFragmentMerge, editor)
 	{
-		$super(target, dest, enableStructFragmentMerge, editor);
+		this.tryApplySuper('initialize', [target, dest, enableStructFragmentMerge, editor])  /* $super(target, dest, enableStructFragmentMerge, editor) */;
 		this._nodeParent = null;
 	},
 	/** @ignore */
@@ -1513,9 +1685,9 @@ Kekule.ChemStructOperation.MergeConnectorsBase = Class.create(Kekule.ChemObjOper
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.MergeConnectorsBase',
 	/** @constructs */
-	initialize: function($super, target, dest, coordMode, enableStructFragmentMerge, editor)
+	initialize: function(/*$super, */target, dest, coordMode, enableStructFragmentMerge, editor)
 	{
-		$super(target, editor);
+		this.tryApplySuper('initialize', [target, editor])  /* $super(target, editor) */;
 		this.setDest(dest);
 		this.setCoordMode(coordMode || Kekule.CoordMode.COORD2D);
 		this.setEnableStructFragmentMerge(enableStructFragmentMerge || false);
@@ -1698,9 +1870,9 @@ Kekule.ChemStructOperation.MergeStructFragment = Class.create(Kekule.ChemObjOper
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.MergeStructFragment',
 	/** @constructs */
-	initialize: function($super, target, dest, editor)
+	initialize: function(/*$super, */target, dest, editor)
 	{
-		$super(target, editor);
+		this.tryApplySuper('initialize', [target, editor])  /* $super(target, editor) */;
 		this.setDest(dest);
 		this._removeOperation = null;
 	},
@@ -1783,9 +1955,9 @@ Kekule.ChemStructOperation.SplitStructFragment = Class.create(Kekule.ChemObjOper
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.SplitStructFragment',
 	/** @constructs */
-	initialize: function($super, target, editor)
+	initialize: function(/*$super, */target, editor)
 	{
-		$super(target, editor);
+		this.tryApplySuper('initialize', [target, editor])  /* $super(target, editor) */;
 	},
 	/** @private */
 	initProperties: function()
@@ -1865,9 +2037,9 @@ Kekule.ChemStructOperation.StandardizeStructFragment = Class.create(Kekule.ChemO
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemStructOperation.StandardizeStructFragment',
 	/** @constructs */
-	initialize: function($super, target, editor)
+	initialize: function(/*$super, */target, editor)
 	{
-		$super(target, editor);
+		this.tryApplySuper('initialize', [target, editor])  /* $super(target, editor) */;
 		this.setEnableSplit(true);
 		this.setEnableRemove(true);
 		this._concreteOper = null;  // private
@@ -1907,4 +2079,268 @@ Kekule.ChemStructOperation.StandardizeStructFragment = Class.create(Kekule.ChemO
 	}
 });
 
-	})();
+/**
+ * A namespace for operation about ChemSpace editor.
+ * @namespace
+ */
+Kekule.ChemSpaceEditorOperation = {};
+
+/**
+ * An operation of changing the size of chem space in editor.
+ * @class
+ * @augments Kekule.ChemObjOperation.Base
+ *
+ * @param {Kekule.ChemSpace} chemSpace.
+ * @param {Hash} newSize
+ * @param {Int} coordMode
+ * @param {Kekule.Editor.ChemSpaceEditor} editor
+ *
+ * @property {Hash} newSize
+ * @property {Int} coordMode
+ */
+Kekule.ChemSpaceEditorOperation.ChangeSpaceSize = Class.create(Kekule.ChemObjOperation.Base,
+/** @lends Kekule.ChemSpaceEditorOperation.ChangeSpaceSize# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemSpaceEditorOperation.ChangeSpaceSize',
+	/** @constructs */
+	initialize: function(/*$super, */chemSpace, newSize, coordMode, editor)
+	{
+		this.tryApplySuper('initialize', [chemSpace, editor])  /* $super(chemSpace, editor) */;
+		this.setCoordMode(coordMode || Kekule.CoordMode.COORD2D);
+		if (newSize)
+			this.setNewSize(newSize);
+	},
+	/** @private */
+	initProperties: function()
+	{
+		this.defineProp('coordMode', {'dataType': DataType.INT});
+		this.defineProp('newSize', {'dataType': DataType.HASH});
+		this.defineProp('oldSize', {'dataType': DataType.HASH});  // private
+	},
+	/** @private */
+	doExecute: function()
+	{
+		var editor = this.getEditor();
+		var space = this.getTarget();
+		//space.beginUpdate();
+		try
+		{
+			var coordMode = this.getCoordMode();
+			if (!this.getOldSize())
+				this.setOldSize(Object.extend({}, space.getSizeOfMode(coordMode, editor.getAllowCoordBorrow())));
+			editor.changeChemSpaceSize(this.getNewSize(), coordMode);
+		}
+		finally
+		{
+			//space.endUpdate();
+		}
+	},
+	/** @private */
+	doReverse: function()
+	{
+		var editor = this.getEditor();
+		var space = this.getTarget();
+		if (this.getOldSize())
+		{
+			//space.beginUpdate();
+			try
+			{
+				var coordMode = this.getCoordMode();
+				editor.changeChemSpaceSize(this.getOldSize(), coordMode);
+			}
+			finally
+			{
+				//space.endUpdate();
+			}
+		}
+	}
+});
+
+/**
+ * An operation of shifting the coords of all direct children of chem space.
+ * @class
+ * @augments Kekule.ChemObjOperation.Base
+ *
+ * @param {Kekule.ChemSpace} chemSpace.
+ * @param {Hash} newSize
+ * @param {Int} coordMode
+ * @param {Kekule.Editor.ChemSpaceEditor} editor
+ *
+ * @property {Hash} newSize
+ * @property {Int} coordMode
+ */
+Kekule.ChemSpaceEditorOperation.ShiftChildrenCoords = Class.create(Kekule.ChemObjOperation.Base,
+/** @lends Kekule.ChemSpaceEditorOperation.ShiftChildrenCoords# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemSpaceEditorOperation.ShiftChildrenCoords',
+	/** @constructs */
+	initialize: function(/*$super, */chemSpace, coordDelta, coordMode, editor)
+	{
+		this.tryApplySuper('initialize', [chemSpace, editor])  /* $super(chemSpace, editor) */;
+		this.setCoordMode(coordMode || Kekule.CoordMode.COORD2D);
+		if (coordDelta)
+			this.setCoordDelta(coordDelta);
+	},
+	/** @private */
+	initProperties: function()
+	{
+		this.defineProp('coordMode', {'dataType': DataType.INT});
+		this.defineProp('coordDelta', {'dataType': DataType.HASH});
+	},
+	/** @private */
+	doExecute: function()
+	{
+		var editor = this.getEditor();
+		var space = this.getTarget();
+		var coordDelta = this.getCoordDelta();
+		var coordMode = this.getCoordMode();
+		//space.beginUpdate();
+		try
+		{
+			editor._shiftChemSpaceChildCoord(coordDelta, coordMode);
+		}
+		finally
+		{
+			//space.endUpdate();
+		}
+	},
+	/** @private */
+	doReverse: function()
+	{
+		var editor = this.getEditor();
+		var space = this.getTarget();
+		var coordDelta = Kekule.CoordUtils.multiply(this.getCoordDelta(), -1);
+		var coordMode = this.getCoordMode();
+		//space.beginUpdate();
+		try
+		{
+			editor._shiftChemSpaceChildCoord(coordDelta, coordMode);
+		}
+		finally
+		{
+			//space.endUpdate();
+		}
+	}
+});
+
+/**
+ * An operation of changing the size of chem space in editor and shift the coords of direct children.
+ * This operation is used by the auto expand feature of chem space editor.
+ * @class
+ * @augments Kekule.ChemObjOperation.Base
+ *
+ * @param {Kekule.ChemSpace} chemSpace.
+ * @param {Hash} newSize
+ * @param {Hash} coordDelta
+ * @param {Int} coordMode
+ * @param {Kekule.Editor.ChemSpaceEditor} editor
+ *
+ * @property {Hash} newSize
+ * @property {Hash} coordDelta
+ * @property {Int} coordMode
+ * @property {Bool} restoreScrollPosition
+ */
+Kekule.ChemSpaceEditorOperation.ChangeSpaceSizeAndShiftChildrenCoords = Class.create(Kekule.ChemObjOperation.Base,
+/** @lends Kekule.ChemSpaceEditorOperation.ChangeSpaceSizeAndShiftChildrenCoords# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemSpaceEditorOperation.ChangeSpaceSizeAndShiftChildrenCoords',
+	/** @constructs */
+	initialize: function(/*$super, */chemSpace, newSize, coordDelta, coordMode, editor)
+	{
+		this.setPropStoreFieldValue('restoreScrollPosition', true);
+		this.tryApplySuper('initialize', [chemSpace, editor])  /* $super(chemSpace, editor) */;
+		this.setCoordMode(coordMode || Kekule.CoordMode.COORD2D);
+		if (newSize)
+			this.setNewSize(newSize);
+		if (coordDelta)
+			this.setCoordDelta(coordDelta);
+	},
+	/** @private */
+	initProperties: function()
+	{
+		this.defineProp('restoreScrollPosition', {'dataType': DataType.BOOL});
+		this.defineProp('coordMode', {'dataType': DataType.INT});
+		this.defineProp('coordDelta', {'dataType': DataType.HASH});
+		this.defineProp('newSize', {'dataType': DataType.HASH});
+		this.defineProp('oldSize', {'dataType': DataType.HASH, 'serializable': false});  // private
+		//this.defineProp('oldScrollCoord', {'dataType': DataType.HASH, 'serializable': false});  // private
+	},
+	/** @private */
+	doExecute: function()
+	{
+		var editor = this.getEditor();
+		var space = this.getTarget();
+		//space.beginUpdate();
+		try
+		{
+			var coordMode = this.getCoordMode();
+			var restoreScrollPosition = this.getRestoreScrollPosition();
+			var scrollCoord;
+			if (restoreScrollPosition)
+			{
+				scrollCoord = editor.getClientScrollCoord(Kekule.Editor.CoordSys.CHEM);
+				//this.setOldScrollCoord(scrollCoord);
+			}
+			if (this.getNewSize())
+			{
+				if (!this.getOldSize())
+					this.setOldSize(Object.extend({}, space.getSizeOfMode(coordMode, editor.getAllowCoordBorrow())));
+				editor.changeChemSpaceSize(this.getNewSize(), coordMode);
+			}
+			if (this.getCoordDelta())
+			{
+				editor._shiftChemSpaceChildCoord(this.getCoordDelta(), coordMode);
+				scrollCoord = Kekule.CoordUtils.add(scrollCoord, this.getCoordDelta());
+			}
+			if (restoreScrollPosition)
+			{
+				editor._registerAfterUpdateObjectProc(function(){editor.scrollClientToCoord(scrollCoord, Kekule.Editor.CoordSys.CHEM);});
+			}
+		}
+		finally
+		{
+			//space.endUpdate();
+		}
+	},
+	/** @private */
+	doReverse: function()
+	{
+		var editor = this.getEditor();
+		var space = this.getTarget();
+		if (this.getOldSize() || this.getCoordDelta())
+		{
+			//space.beginUpdate();
+			try
+			{
+				var restoreScrollPosition = this.getRestoreScrollPosition();
+				var coordMode = this.getCoordMode();
+				var scrollCoord;
+				if (restoreScrollPosition)
+				{
+					scrollCoord = editor.getClientScrollCoord(Kekule.Editor.CoordSys.CHEM);
+					//this.setOldScrollCoord(scrollCoord);
+				}
+				if (this.getCoordDelta())
+				{
+					editor._shiftChemSpaceChildCoord(Kekule.CoordUtils.multiply(this.getCoordDelta(), -1), coordMode);
+					scrollCoord = Kekule.CoordUtils.substract(scrollCoord, this.getCoordDelta());
+				}
+				if (this.getOldSize())
+					editor.changeChemSpaceSize(this.getOldSize(), coordMode);
+				if (this.getRestoreScrollPosition() && scrollCoord)
+				{
+					editor._registerAfterUpdateObjectProc(function(){editor.scrollClientToCoord(scrollCoord, Kekule.Editor.CoordSys.CHEM);});
+				}
+			}
+			finally
+			{
+				//space.endUpdate();
+			}
+		}
+	}
+});
+
+})();

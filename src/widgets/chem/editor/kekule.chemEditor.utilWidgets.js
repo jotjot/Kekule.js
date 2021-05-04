@@ -43,6 +43,8 @@ Kekule.ChemWidget.HtmlClassNames = Object.extend(Kekule.ChemWidget.HtmlClassName
 	GLYPH_PATH_ARROW_SETTING_PANEL: 'K-Chem-GlyphPath-Arrow-SettingPanel',
 	GLYPH_PATH_ARROW_STYLE_BTNGROUP: 'K-Chem-GlyphPath-Arrow-StyleButtonGroup',
 	GLYPH_PATH_ARROW_STYLE_BUTTON: 'K-Chem-GlyphPath-Arrow-StyleButton',
+	GLYPH_PATH_ARROW_CONTINUOUS_SIDES_BTNGROUP: 'K-Chem-GlyphPath-Arrow-ContinuousSidesButtonGroup',
+	GLYPH_PATH_ARROW_CONTINUOUS_SIDES_BUTTON: 'K-Chem-GlyphPath-Arrow-ContinuousSidesButton',
 	GLYPH_Path_ARROW_SIZE_SETTER: 'K-Chem-GlyphPath-Arrow-SizeSetter',
 	GLYPH_REACTION_ARROW_PRESET_SELECTOR: 'K-Chem-Glyph-ReactionArrow-PresetSelector',
 	GLYPH_REACTION_ARROW_PRESET_SELECTOR_BTNSET: 'K-Chem-Glyph-ReactionArrow-PresetSelector-ButtonSet',
@@ -56,10 +58,15 @@ Kekule.ChemWidget.HtmlClassNames = Object.extend(Kekule.ChemWidget.HtmlClassName
 	GLYPH_PATH_SETTING_PANEL_SECTION: 'K-Chem-GlyphPath-SettingPanel-Section',
 	GLYPH_PATH_SETTING_PANEL_SECTION_TITLE: 'K-Chem-GlyphPath-SettingPanel-Section-Title',
 	GLYPH_PATH_SETTING_PANEL_SECTION_PANEL: 'K-Chem-GlyphPath-SettingPanel-Section-Panel',
+	GLYPH_MULTIPATH_SETTING_PANEL: 'K-Chem-GlyphMultiPath-SettingPanel',
+	GLYPH_MULTIPATH_SETTING_PANEL_PATH_TABGROUP: 'K-Chem-GlyphMultiPath-SettingPanel-PathTabGroup',
+	GLYPH_MULTIPATH_SETTING_PANEL_PATH_SETTING_PANEL: 'K-Chem-GlyphMultiPath-SettingPanel-PathSettingPanel',
 	GLYPH_REACTION_ARROW_PATH_SETTING_PANEL: 'K-Chem-ReactionArrow-SettingPanel',
 	GLYPH_REACTION_ARROW_PATH_SETTING_PANEL_ARROW_PRESET_SECTION: 'K-Chem-ReactionArrow-SettingPanel-ArrowPresetSection',
 	GLYPH_ARC_PATH_SETTING_PANEL: 'K-Chem-ArcPath-SettingPanel',
-	GLYPH_ELECTRON_PUSHING_ARROW_SETTING_PANEL: 'K-Chem-ElectronPusingArrow-SettingPanel'
+	GLYPH_MULTIARC_PATH_SETTING_PANEL: 'K-Chem-MultiArcPath-SettingPanel',
+	GLYPH_ELECTRON_PUSHING_ARROW_SETTING_PANEL: 'K-Chem-ElectronPusingArrow-SettingPanel',
+	GLYPH_MULTI_ELECTRON_PUSHING_ARROW_SETTING_PANEL: 'K-Chem-MultiElectronPusingArrow-SettingPanel'
 });
 
 /**
@@ -95,17 +102,18 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
 	/** @private */
 	BTN_DATA_FIELD: '__$btn_data__',
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
 		this.setPropStoreFieldValue('displayElements', true);
 		this.setPropStoreFieldValue('displayNonElements', true);
 		this.setPropStoreFieldValue('displaySubgroups', true);
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 		this.addEventListener('execute', this.reactSelButtonExec.bind(this));
 	},
 	/** @private */
 	initProperties: function()
 	{
+		this.defineProp('value', {'dataType': DataType.HASH, 'serializable': false, 'setter': null});
 		this.defineProp('elementSymbols', {
 			'dataType': DataType.ARRAY,
 			'scope': Class.PropertyScope.PUBLIC
@@ -168,17 +176,17 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
 		});
 	},
 	/** @private */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		return $super();
+		return this.tryApplySuper('initPropValues')  /* $super() */;
 	},
 	/** @ignore */
-	doFinalize: function($super)
+	doFinalize: function(/*$super*/)
 	{
 		var dialog = this.getPeriodicTableDialog();
 		if (dialog)
 			dialog.finalize();
-		$super();
+		this.tryApplySuper('doFinalize')  /* $super() */;
 	},
 
 	/**
@@ -218,7 +226,7 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
 						if (result === Kekule.Widget.DialogButtons.OK)
 						{
 							var symbol = self._periodicTable.getSelectedSymbol();
-							self.notifyValueChange(self.generateSelectableDataFromElementSymbol(symbol));
+							self.doValueChanged(self.generateSelectableDataFromElementSymbol(symbol));
 						}
 					}, {'isSimpleAtom': true});
 				}
@@ -232,13 +240,13 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
 							var props = data.isVarList?
 								{'allowedIsotopeIds': symbols, 'disallowedIsotopeIds': null}:
 								{'allowedIsotopeIds': null, 'disallowedIsotopeIds': symbols};
-							self.notifyValueChange({'nodeClass': nodeClass, 'props': props});
+							self.doValueChanged({'nodeClass': nodeClass, 'props': props});
 						}
 					}, {'isVarList': data.isVarList, 'isVarNotList': data.isVarNotList});
 				}
 				else  // normal button
 				{
-					this.notifyValueChange(data);
+					this.doValueChanged(data);
 				}
 			}
 		}
@@ -247,8 +255,9 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
 	 * Notify the new atom value has been setted.
 	 * @private
 	 */
-	notifyValueChange: function(newData)
+	doValueChanged: function(newData)
 	{
+		this.setPropStoreFieldValue('value', newData);
 		this.invokeEvent('valueChange', {
 			'value': {
 				'nodeClass': newData.nodeClass,
@@ -276,9 +285,9 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
 	},
 
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.STRUCTURE_NODE_SELECT_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.STRUCTURE_NODE_SELECT_PANEL;
 	},
 	/** @ignore */
 	doCreateRootElement: function(doc)
@@ -287,11 +296,11 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
 		return result;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 
-		this.updatePanelContent(doc, rootElem);
+		this.updatePanelContent(doc, this.getChildrenHolderElement());
 		// Custom input
 
 		return result;
@@ -517,7 +526,7 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
 			this._periodicTable.setSelectedSymbol(node.getSymbol());
 		}
 
-		dialog.openPopup(callback, this || caller);
+		dialog.openPopup(callback, caller || this);
 	}
 });
 
@@ -543,10 +552,12 @@ Kekule.ChemWidget.StructureNodeSelectPanel = Class.create(Kekule.Widget.Panel,
  * @property {Array} selectableSubGroupRepItems Displayed subgroup repository items.
  *   Change this value will update property subGroupInfos.
  *
+ * @property {Bool} enableHydrogenCountInput Whether texts like 'CH3'/'NH2' (with H count) are allowed in inputting.
+ *
  * @property {Object} labelConfigs Label configs object of render configs.
  *
  * @property {Array} nodes Structure nodes that currently be edited in node setter.
- *   Note: When done editting, the changes will not directly applied to nodes, editor should handle them insteadly.
+ *   Note: When done editing, the changes will not directly applied to nodes, editor should handle them insteadly.
  * @property {Hash} value Node new properties setted by setter. Include fields: {nodeClass, props, repositoryItem}
  * @property {String} nodeLabel
  */
@@ -568,9 +579,9 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemWidget.StructureNodeSetter',
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 		this._valueSetBySelectPanel = false;  // an internal flag, whether the value of node is set by click on select panel
 		/*
 		var self = this;
@@ -595,6 +606,7 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 	/** @private */
 	initProperties: function()
 	{
+		this.defineProp('enableHydrogenCountInput', {'dataType': DataType.BOOL});
 		this.defineProp('nodes', {'dataType': DataType.ARRAY, 'serializable': false,
 			'setter': function(value)
 			{
@@ -623,6 +635,16 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 			'dataType': 'Kekule.Widget.ButtonTextBox',
 			'serializable': false,
 			'setter': false
+		});
+		this.defineProp('nodeInputBoxFontSize', {
+			'dataType': DataType.STRING,
+			'serializable': false,
+			'setter': function(value)
+			{
+				var elem = this.getNodeInputBox().getTextBox().getElement();
+				elem.style.fontSize = value;
+				this.setPropStoreFieldValue('nodeInputBoxFontSize', value);
+			}
 		});
 		this.defineProp('nodeSelectPanel', {
 			'dataType': 'Kekule.ChemWidget.StructureNodeSelectPanel',
@@ -662,16 +684,21 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 		this._defineSelectPanelDelegatedProp('displaySelectableSubgroups', 'displaySubgroups');
 	},
 	/** @private */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
+		this.setEnableHydrogenCountInput(true);
 	},
 	/** @ignore */
-	doFinalize: function($super)
+	doFinalize: function(/*$super*/)
 	{
 		var panel = this.getNodeSelectPanel();
-		panel.finalize();
-		$super();
+		if (panel)
+			panel.finalize();
+		var inputBox = this.getNodeInputBox();
+		if (inputBox)
+			inputBox.finalize();
+		this.tryApplySuper('doFinalize')  /* $super() */;
 	},
 	/**
 	 * Define property that directly mapped to select panel's property.
@@ -703,9 +730,9 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 	},
 
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.STRUCTURE_NODE_SETTER;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.STRUCTURE_NODE_SETTER;
 	},
 	/** @ignore */
 	doCreateRootElement: function(doc)
@@ -714,9 +741,9 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 		return result;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		var self = this;
 
 		// input box
@@ -775,7 +802,7 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 			e.stopPropagation();
 
 			self._valueSetBySelectPanel = true;
-			self.notifyValueChange(e.value, true);
+			self.doValueChanged(e.value, true);
 			// when value is set by button in selector panel, auto hide it in drop down mode
 			if (self.getUseDropDownSelectPanel())
 				panel.hide();
@@ -794,13 +821,14 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 		{
 			inputBox.setButtonKind(Kekule.Widget.Button.Kinds.DROPDOWN);
 			selectPanel.removeFromDom();
+			selectPanel.hide(null, null, Kekule.Widget.ShowHideType.DEFAULT);
 		}
 		else
 		{
 			inputBox.setButtonKind(Kekule.Widget.Button.Kinds.ENTER);
 			selectPanel.appendToElem(this.getCoreElement());
 			selectPanel.setStyleProperty('position', '');  // clear position:absolute value from previous dropdown show
-			selectPanel.show(null, null,  Kekule.Widget.ShowHideType.DEFAULT);
+			selectPanel.show(null, null, Kekule.Widget.ShowHideType.DEFAULT);
 		}
 	},
 
@@ -832,9 +860,24 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 		return null;
 	},
 	/** @private */
+	_getNodeWithExplicitHInfo: function(nodeLabel)
+	{
+		var result = {};
+		var pattern = /^(\d*[A-Z][a-z]?\d*)H(\d*)$/;
+		var matchResult = nodeLabel.trim().match(pattern);
+		if (matchResult)  // may has explicit hydrogens
+		{
+			result.core = matchResult[1];
+			result.explicitHCount = parseInt(matchResult[2]) || 1;
+		}
+		else
+			result.core = nodeLabel;
+		return result;
+	},
+	/** @private */
 	_getValueFromDirectInputText: function(text)
 	{
-		var nodeClass, modifiedProps, newNode, repItem, isUnknownPAtom;
+		var nodeClass, modifiedProps, newNode, repItem, isUnknownPAtom, inputHydrogenCount;
 
 		var nonAtomInfo = this._getNonAtomInfo(text);
 		if (nonAtomInfo)  // is not an atom
@@ -866,13 +909,30 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 			}
 			else if (text) // add normal node
 			{
-				nodeClass = Kekule.ChemStructureNodeFactory.getClassByLabel(text, null); // explicit set defaultClass parameter to null
+				var isotopeId = text;
+				nodeClass = Kekule.ChemStructureNodeFactory.getClassByLabel(isotopeId, null); // explicit set defaultClass parameter to null
 				if (!nodeClass)
 				{
-					nodeClass = Kekule.Pseudoatom;
-					isUnknownPAtom = true;
+					if (this.getEnableHydrogenCountInput())
+					{
+						var infoWithExplicitH = this._getNodeWithExplicitHInfo(isotopeId);
+						if (infoWithExplicitH.explicitHCount)  // may be in form like NH2, with explicit H
+						{
+							nodeClass = Kekule.ChemStructureNodeFactory.getClassByLabel(infoWithExplicitH.core, null);  // try get class with core part of input
+							if (nodeClass)
+							{
+								inputHydrogenCount = infoWithExplicitH.explicitHCount;
+								isotopeId = infoWithExplicitH.core;
+							}
+						}
+					}
+					if (!nodeClass)
+					{
+						nodeClass = Kekule.Pseudoatom;
+						isUnknownPAtom = true;
+					}
 				}
-				modifiedProps = (nodeClass === Kekule.Atom) ? {'isotopeId': text} :
+				modifiedProps = (nodeClass === Kekule.Atom) ? {'isotopeId': isotopeId, 'inputHydrogenCount': inputHydrogenCount} :
 						(nodeClass === Kekule.Pseudoatom) ? {'symbol': text} :
 						{};
 			}
@@ -891,11 +951,18 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 	{
 		this._valueSetBySelectPanel = false;
 		var inputBox = this.getNodeInputBox();
-		var text = inputBox.getValue();
-		var data = this._getValueFromDirectInputText(text);
-
-		this.notifyValueChange(data);
-		inputBox.setIsDirty(false);
+		//console.log('direct input', inputBox.getIsDirty());
+		if (inputBox.getIsDirty())
+		{
+			var text = inputBox.getValue();
+			var data = this._getValueFromDirectInputText(text);
+			this.doValueChanged(data);
+			inputBox.setIsDirty(false);
+		}
+		else  // actually no changes
+		{
+			this.doValueChanged(null);  // returns null indicating no changes
+		}
 	},
 
 	/** @private */
@@ -936,7 +1003,10 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 	/** @private */
 	_getAllNodeLabels: function(nodes)
 	{
-		return Kekule.Editor.StructureUtils.getAllChemStructureNodesLabel(nodes, this.getLabelConfigs());
+		var options = {};
+		if (this.getEnableHydrogenCountInput())
+			options.includeExplicitHydrogens = true;
+		return Kekule.Editor.StructureUtils.getAllChemStructureNodesLabel(nodes, this.getLabelConfigs(), options);
 		/*
 		var nodeLabel;
 		for (var i = 0, l = nodes.length; i < l; ++i)
@@ -977,11 +1047,10 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 	 * Notify the new atom value has been setted.
 	 * @private
 	 */
-	notifyValueChange: function(newData, isSelectedFromPanel)
+	doValueChanged: function(newData, isSelectedFromPanel)
 	{
-		//console.log('value changed', newData);
 		this.setPropStoreFieldValue('value', newData);
-		var eventData = {
+		var eventData = newData && {
 			'nodeClass': newData.nodeClass,
 			'props': newData.props,
 			//'node': newData.node,
@@ -1071,9 +1140,9 @@ Kekule.ChemWidget.StructureConnectorSelectPanel = Class.create(Kekule.Widget.Pan
 	/** @private */
 	BTN_GROUP: '__$bond_btn_group__',
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 		this._selButtons = [];
 		this._activeBtn = null;
 		this.addEventListener('execute', this.reactSelButtonExec.bind(this));
@@ -1081,6 +1150,7 @@ Kekule.ChemWidget.StructureConnectorSelectPanel = Class.create(Kekule.Widget.Pan
 	/** @private */
 	initProperties: function()
 	{
+		this.defineProp('value', {'dataType': DataType.HASH, 'serializable': false, 'setter': null});
 		this.defineProp('bondData', {
 			'dataType': DataType.ARRAY,
 			'scope': Class.PropertyScope.PUBLIC
@@ -1125,9 +1195,9 @@ Kekule.ChemWidget.StructureConnectorSelectPanel = Class.create(Kekule.Widget.Pan
 	},
 
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.STRUCTURE_CONNECTOR_SELECT_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.STRUCTURE_CONNECTOR_SELECT_PANEL;
 	},
 	/** @ignore */
 	doCreateRootElement: function(doc)
@@ -1136,9 +1206,9 @@ Kekule.ChemWidget.StructureConnectorSelectPanel = Class.create(Kekule.Widget.Pan
 		return result;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 
 		this.updatePanelContent(doc, rootElem);
 		// Custom input
@@ -1193,7 +1263,7 @@ Kekule.ChemWidget.StructureConnectorSelectPanel = Class.create(Kekule.Widget.Pan
 			if (data)
 			{
 				this.setPropStoreFieldValue('activeBondPropValues', data.bondProps);
-				this.notifyValueChange(data.bondProps);
+				this.doValueChanged(data.bondProps);
 			}
 		}
 	},
@@ -1201,8 +1271,9 @@ Kekule.ChemWidget.StructureConnectorSelectPanel = Class.create(Kekule.Widget.Pan
 	 * Notify the new bond props value has been setted.
 	 * @private
 	 */
-	notifyValueChange: function(newData)
+	doValueChanged: function(newData)
 	{
+		this.setPropStoreFieldValue('value', newData);
 		this.invokeEvent('valueChange', {
 			'value': newData
 		});
@@ -1274,11 +1345,11 @@ Kekule.ChemWidget.StructureConnectorSelectPanelAdv = Class.create(Kekule.ChemWid
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemWidget.StructureConnectorSelectPanelAdv',
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
 		this.setPropStoreFieldValue('extraComponents', [Kekule.ChemWidget.StructureConnectorSelectPanelAdv.Components.KEKULIZE]);
 		this._additionalCompWidgets = [];  // internal
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 	},
 	/** @private */
 	initProperties: function() {
@@ -1288,14 +1359,14 @@ Kekule.ChemWidget.StructureConnectorSelectPanelAdv = Class.create(Kekule.ChemWid
 		});
 	},
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.STRUCTURE_CONNECTOR_SELECT_PANEL_ADV;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.STRUCTURE_CONNECTOR_SELECT_PANEL_ADV;
 	},
 	/** @ignore */
-	doObjectChange: function($super, modifiedPropNames)
+	doObjectChange: function(/*$super, */modifiedPropNames)
 	{
-		$super(modifiedPropNames);
+		this.tryApplySuper('doObjectChange', [modifiedPropNames])  /* $super(modifiedPropNames) */;
 		var affectedProps = [
 			'extraComponents'
 		];
@@ -1304,10 +1375,10 @@ Kekule.ChemWidget.StructureConnectorSelectPanelAdv = Class.create(Kekule.ChemWid
 	},
 
 	/** @ignore */
-	updatePanelContent: function($super, doc, rootElem)
+	updatePanelContent: function(/*$super, */doc, rootElem)
 	{
 		this.clearAdditionalSections();
-		$super(doc, rootElem);
+		this.tryApplySuper('updatePanelContent', [doc, rootElem])  /* $super(doc, rootElem) */;
 		var extraComps = this.getExtraComponents();
 		if (extraComps)
 		{
@@ -1321,9 +1392,9 @@ Kekule.ChemWidget.StructureConnectorSelectPanelAdv = Class.create(Kekule.ChemWid
 	 * Event handler to react on selector button clicked.
 	 * @private
 	 */
-	reactSelButtonExec: function($super, e)
+	reactSelButtonExec: function(/*$super, */e)
 	{
-		$super(e);
+		this.tryApplySuper('reactSelButtonExec', [e])  /* $super(e) */;
 		var btn = e.target;
 		if (btn._command)  // is a extra command button, not a bond select button
 		{
@@ -1430,14 +1501,14 @@ Kekule.ChemWidget.ChargeSelectPanel = Class.create(Kekule.Widget.Panel,
 	/** @private */
 	CHARGE_FIELD: '__$charge__',
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
 		this._chargeBtnGroups = {};  // private
 		this._selectedButton = null; // private
 		this._chargeButtonMap = [];  // private
 		this.setPropStoreFieldValue('maxCharge', 4);
 		this.setPropStoreFieldValue('minCharge', -4);
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 		this.addEventListener('execute', this.reactSelButtonExec.bind(this));
 	},
 	/** @private */
@@ -1489,14 +1560,14 @@ Kekule.ChemWidget.ChargeSelectPanel = Class.create(Kekule.Widget.Panel,
 		});
 	},
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.CHARGE_SELECT_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.CHARGE_SELECT_PANEL;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		this.updateChargeButtons(doc, rootElem);
 		return result;
 	},
@@ -1633,12 +1704,14 @@ Kekule.ChemWidget.GlyphPathArrowSettingPanel = Class.create(Kekule.Widget.Panel,
 	/* @private */
 	//DATA_SIZE_RATIO: 10,
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
 		this._isSettingValue = false;
 		this._arrowWidthInputter = null;
 		this._arrowLengthInputter = null;
 		this._arrowStyleButtons = null;
+		//this._continuousArrowSidesButtons = null;
+		//this._continuousArrowSidesButtonGroup = null;
 
 		//this.setPropStoreFieldValue('value', {});
 		this.setPropStoreFieldValue('arrowWidthMin', 0);
@@ -1647,12 +1720,14 @@ Kekule.ChemWidget.GlyphPathArrowSettingPanel = Class.create(Kekule.Widget.Panel,
 		this.setPropStoreFieldValue('arrowLengthMin', 0);
 		this.setPropStoreFieldValue('arrowLengthMax', 0.5);
 		this.setPropStoreFieldValue('arrowLengthStep', 0.1);
+		this.setPropStoreFieldValue('showContinousArrowSidesSetter', !true);  // temp
+
 		this.setPropStoreFieldValue('defaultValue', {
 			arrowType: Kekule.Glyph.ArrowType.NONE,
 			arrowSide: Kekule.Glyph.ArrowSide.BOTH
 		});
 
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 
 		this.addEventListener('check', this.reactArrowStyleButtonCheck.bind(this));
 		this.addEventListener('valueChange', this.reactArrowSizeInputterChange.bind(this));
@@ -1685,19 +1760,32 @@ Kekule.ChemWidget.GlyphPathArrowSettingPanel = Class.create(Kekule.Widget.Panel,
 					{
 						var btn = this._arrowStyleButtons[i];
 						var data = btn[this.DATA_FIELD];
-						if (data.arrowType === concreteValue.arrowType && (data.arrowSide === concreteValue.arrowSide) || (data.arrowType === Kekule.Glyph.ArrowType.NONE))
+						if (data.arrowType === concreteValue.arrowType &&
+							((data.arrowSide === concreteValue.arrowSide) || (data.arrowType === Kekule.Glyph.ArrowType.NONE)))
 							btn.setChecked(true);
 						else
 							btn.setChecked(false);
 					}
-					// arrow size
-					if (OU.notUnset(concreteValue.arrowWidth))
+
+					/*
+					var oppositeSides = concreteValue.oppositeContinuousArrowSides;
+					var oppositeSidesSet = OU.notUnset(oppositeSides);
+					for (var i = 0, l = this._continuousArrowSidesButtons.length; i < l; ++i)
 					{
-						this._arrowWidthInputter.setValue(concreteValue.arrowWidth);
+						var btn = this._continuousArrowSidesButtons[i];
+						var data = btn[this.DATA_FIELD];
+						btn.setChecked(oppositeSidesSet && (!!oppositeSides === data.oppositeContinuousArrowSides));
 					}
-					if (OU.notUnset(concreteValue.arrowLength))
+					*/
+
+					// arrow size
+					//if (OU.notUnset(concreteValue.arrowWidth))
 					{
-						this._arrowLengthInputter.setValue(concreteValue.arrowLength);
+						this._arrowWidthInputter.setValue(concreteValue.arrowWidth || 0);
+					}
+					//if (OU.notUnset(concreteValue.arrowLength))
+					{
+						this._arrowLengthInputter.setValue(concreteValue.arrowLength || 0);
 					}
 				}
 				finally
@@ -1714,9 +1802,21 @@ Kekule.ChemWidget.GlyphPathArrowSettingPanel = Class.create(Kekule.Widget.Panel,
 		this.defineProp('arrowLengthMin', {'dataType': DataType.NUMBER});
 		this.defineProp('arrowLengthMax', {'dataType': DataType.NUMBER});
 		this.defineProp('arrowLengthStep', {'dataType': DataType.NUMBER});
+
+		/*
+		this.defineProp('showContinousArrowSidesSetter', {
+			'dataType': DataType.BOOL,
+			'setter': function(value)
+			{
+				this.setPropStoreFieldValue('showContinousArrowSidesSetter', value);
+				if (this._continuousArrowSidesButtonGroup)
+					this._continuousArrowSidesButtonGroup.setDisplayed(!!value);
+			}
+		});
+		*/
 	},
 	/** @ignore */
-	doObjectChange: function($super, modifiedPropNames)
+	doObjectChange: function(/*$super, */modifiedPropNames)
 	{
 		if (modifiedPropNames.indexOf('allowedArrowTypes') >= 0 || modifiedPropNames.indexOf('allowedArrowSides') >= 0)
 			this._updateStyleButtons();
@@ -1726,19 +1826,23 @@ Kekule.ChemWidget.GlyphPathArrowSettingPanel = Class.create(Kekule.Widget.Panel,
 			this._updateLengthInputter();
 	},
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.GLYPH_PATH_ARROW_SETTING_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_PATH_ARROW_SETTING_PANEL;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		var styleSectionElem = this.doCreateSectionElem(doc, rootElem);
 		var styleGroup = this.doCreateArrowStyleButtons(doc, styleSectionElem);
+		//var continousArrowSideSetter = this.doCreateContinuousArrowSidesSetter(doc, styleSectionElem);
 		var sizeSectionElem = this.doCreateSectionElem(doc, rootElem);
 		var sizeGroup = this.doCreateArrowSizeControls(doc, sizeSectionElem);
-		return result.concat(styleGroup).concat(sizeGroup);
+
+		//this._continuousArrowSidesButtonGroup.setDisplayed(!!this.getShowContinousArrowSidesSetter());
+
+		return result.concat(styleGroup)/*.concat(continousArrowSideSetter)*/.concat(sizeGroup);
 	},
 	/** @private */
 	doCreateSectionElem: function(doc, parentElem)
@@ -1802,6 +1906,42 @@ Kekule.ChemWidget.GlyphPathArrowSettingPanel = Class.create(Kekule.Widget.Panel,
 		btnGroup.appendToElem(parentElem);
 		return [btnGroup];
 	},
+	/* @private */
+	/*
+	doCreateContinuousArrowSidesSetter: function(doc, parentElem)
+	{
+		var _createChildButton = function(caption, className, value, dataFieldName)
+		{
+			var btn = new Kekule.Widget.RadioButton(btnGroup, caption);
+			btn.setHint(caption).setGroup('ContinuousArrowSidesSetter').addClassName(className);
+			btn[dataFieldName] = {'oppositeContinuousArrowSides': value};
+			return btn;
+		};
+
+		var btnGroup = new Kekule.Widget.ButtonGroup(this);
+		btnGroup.addClassName(CCNS.GLYPH_PATH_ARROW_CONTINUOUS_SIDES_BTNGROUP);
+		btnGroup.setShowGlyph(true).setShowText(false);
+
+		this._continuousArrowSidesButtons = [];
+
+		var btn = _createChildButton(  // same side button
+			Kekule.$L('ChemWidgetTexts.CAPTION_SAME_ARROW_SIDES'),
+			CCNS.GLYPH_PATH_ARROW_CONTINUOUS_SIDES_BUTTON + '-Same',
+			false, this.DATA_FIELD
+		);
+		this._continuousArrowSidesButtons.push(btn);
+		var btn = _createChildButton(  // opposite side button
+			Kekule.$L('ChemWidgetTexts.CAPTION_OPPOSITE_ARROW_SIDES'),
+			CCNS.GLYPH_PATH_ARROW_CONTINUOUS_SIDES_BUTTON + '-Opposite',
+			true, this.DATA_FIELD
+		);
+		this._continuousArrowSidesButtons.push(btn);
+		this._continuousArrowSidesButtonGroup = btnGroup;
+
+		btnGroup.appendToElem(parentElem);
+		return [btnGroup];
+	},
+	*/
 	/** @private */
 	doCreateArrowSizeControls: function(doc, parentElem)
 	{
@@ -1901,8 +2041,14 @@ Kekule.ChemWidget.GlyphPathArrowSettingPanel = Class.create(Kekule.Widget.Panel,
 		if (w && w[this.DATA_FIELD])
 		{
 			var v = this.getValue();
+			//if (OU.notUnset(w[this.DATA_FIELD].arrowType))
 			v.arrowType = w[this.DATA_FIELD].arrowType;
+			//if (OU.notUnset(w[this.DATA_FIELD].arrowSide))
 			v.arrowSide = w[this.DATA_FIELD].arrowSide;
+			/*
+			if (OU.notUnset(w[this.DATA_FIELD].oppositeContinuousArrowSides))
+				v.oppositeContinuousArrowSides = w[this.DATA_FIELD].oppositeContinuousArrowSides;
+			*/
 			this.notifyValueChange(v);
 			e.stopPropagation();
 		}
@@ -1967,12 +2113,12 @@ Kekule.ChemWidget.GlyphReactionArrowPresetSelector = Class.create(Kekule.Widget.
 	/** @private */
 	DATA_FIELD: '__$data$__',
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
 		this._isSettingValue = false;
 		this._buttonSet = null;
 
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 
 		//this.addEventListener('check', this.reactArrowStyleButtonCheck.bind(this));
 	},
@@ -2012,14 +2158,14 @@ Kekule.ChemWidget.GlyphReactionArrowPresetSelector = Class.create(Kekule.Widget.
 	},
 
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.GLYPH_REACTION_ARROW_PRESET_SELECTOR;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_REACTION_ARROW_PRESET_SELECTOR;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		var buttonSet = this.doCreateButtonSet(doc, rootElem);
 		return result.concat([buttonSet.getElement()]);
 	},
@@ -2101,12 +2247,12 @@ Kekule.ChemWidget.GlyphElectronPushingArrowPresetSelector = Class.create(Kekule.
 	/** @private */
 	DATA_FIELD: '__$data$__',
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
 		this._isSettingValue = false;
 		this._buttonGroup = null;
 
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 	},
 	/** @private */
 	initProperties: function() {
@@ -2143,14 +2289,14 @@ Kekule.ChemWidget.GlyphElectronPushingArrowPresetSelector = Class.create(Kekule.
 	},
 
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.GLYPH_ELECTRON_PUSHING_ARROW_PRESET_SELECTOR;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_ELECTRON_PUSHING_ARROW_PRESET_SELECTOR;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		var buttonGroup = this.doCreateButtonGroup(doc, rootElem);
 		return result.concat([buttonGroup.getElement()]);
 	},
@@ -2228,7 +2374,7 @@ Kekule.ChemWidget.GlyphPathLineSettingPanel = Class.create(Kekule.Widget.Panel,
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemWidget.GlyphPathLineSettingPanel',
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
 		this._isSettingValue = false;
 		this.setPropStoreFieldValue('lineCountMin', 1);
@@ -2238,7 +2384,7 @@ Kekule.ChemWidget.GlyphPathLineSettingPanel = Class.create(Kekule.Widget.Panel,
 		this.setPropStoreFieldValue('lineGapMax', 0.8);
 		this.setPropStoreFieldValue('lineGapStep', 0.1);
 
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 
 		this.addEventListener('valueChange', this.reactInputWidgetChange.bind(this));
 	},
@@ -2262,11 +2408,11 @@ Kekule.ChemWidget.GlyphPathLineSettingPanel = Class.create(Kekule.Widget.Panel,
 				try
 				{
 					this.setPropStoreFieldValue('value', value);
-					if (OU.notUnset(value.lineCount))
+					//if (OU.notUnset(value.lineCount))
 					{
 						this._lineCountInput.setValue(value.lineCount);
 					}
-					if (OU.notUnset(value.lineGap))
+					//if (OU.notUnset(value.lineGap))
 					{
 						this._lineGapInput.setValue(value.lineGap);
 					}
@@ -2285,14 +2431,14 @@ Kekule.ChemWidget.GlyphPathLineSettingPanel = Class.create(Kekule.Widget.Panel,
 		this.defineProp('lineGapStep', {'dataType': DataType.NUMBER});
 	},
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.GLYPH_PATH_LINE_SETTING_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_PATH_LINE_SETTING_PANEL;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		// line count
 		var sec1 = this.doCreateNumInputSection(doc, rootElem, Kekule.$L('ChemWidgetTexts.CAPTION_LINE_COUNT') + ':');
 		this._lineCountInput = sec1.widget;
@@ -2399,9 +2545,9 @@ Kekule.ChemWidget.GlyphPathSettingPanel = Class.create(Kekule.Widget.Panel,
 	/** @private */
 	DEF_COMPONENTS: ['startingArrow', 'endingArrow', 'line'],
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 		this.addEventListener('valueChange', this.reactChildSetterValueChange.bind(this));
 		this.addEventListener('valueInput', this.reactChildSetterValueInput.bind(this));
 	},
@@ -2434,23 +2580,50 @@ Kekule.ChemWidget.GlyphPathSettingPanel = Class.create(Kekule.Widget.Panel,
 			}
 		});
 		this.defineProp('components', {'dataType': DataType.ARRAY});
+
+		/*
+		this.defineProp('showContinousStartArrowSidesSetter', {
+			'dataType': DataType.BOOL,
+			'getter': function()
+			{
+				return this._startingArrowSetter && this._startingArrowSetter.getShowContinousArrowSidesSetter();
+			},
+			'setter': function(value)
+			{
+				if (this._startingArrowSetter)
+					this._startingArrowSetter.setShowContinousArrowSidesSetter(value);
+			}
+		});
+		this.defineProp('showContinousEndArrowSidesSetter', {
+			'dataType': DataType.BOOL,
+			'getter': function()
+			{
+				return this._endingArrowSetter && this._endingArrowSetter.getShowContinousArrowSidesSetter();
+			},
+			'setter': function(value)
+			{
+				if (this._endingArrowSetter)
+					this._endingArrowSetter.setShowContinousArrowSidesSetter(value);
+			}
+		});
+		*/
 	},
 	/** @ignore */
-	doObjectChange: function($super, modifiedPropNames)
+	doObjectChange: function(/*$super, */modifiedPropNames)
 	{
 		if (modifiedPropNames.indexOf('components') >= 0)
 			this.updateComponents();
-		return $super(modifiedPropNames);
+		return this.tryApplySuper('doObjectChange', [modifiedPropNames])  /* $super(modifiedPropNames) */;
 	},
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.GLYPH_PATH_SETTING_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_PATH_SETTING_PANEL;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		var secArrow1 = this.doCreateArrowSettingSection(doc, rootElem, Kekule.$L('ChemWidgetTexts.CAPTION_STARTING_ARROW'));
 		this._startingArrowSetter = secArrow1.widget;
 		this._startingArrowElem = secArrow1.elem;
@@ -2542,6 +2715,16 @@ Kekule.ChemWidget.GlyphPathSettingPanel = Class.create(Kekule.Widget.Panel,
 		return [this._startingArrowSetter, this._endingArrowSetter, this._lineSetter];
 	},
 	/** @private */
+	getStartingArrowSetter: function()
+	{
+		return this._startingArrowSetter;
+	},
+	/** @private */
+	getEndingArrowSetter: function()
+	{
+		return this._endingArrowSetter;
+	},
+	/** @private */
 	_addPropPrefix: function(hash, propPrefix)
 	{
 		var result = {};
@@ -2585,6 +2768,225 @@ Kekule.ChemWidget.GlyphPathSettingPanel = Class.create(Kekule.Widget.Panel,
 });
 
 /**
+ * An panel to set the properties of multiple pathes in one glyph.
+ * @class
+ * @augments Kekule.Widget.Panel
+ *
+ * @property {Array} value Path params array, each item includs fields {start/endArrowType, start/endArrowSide, start/endArrowWidth, start/endArrowLength, lineCount, lineGap}.
+ * @property {Array} components Visible components in panel. The default value is ['startingArrow', 'endingArrow', 'line'].
+ */
+/**
+ * Invoked when the params has been set.
+ *   event param of it has field: {value}
+ * @name Kekule.ChemWidget.GlyphMultiPathSettingPanel#valueChange
+ * @event
+ */
+/**
+ * Invoked when the new params are setting in the widget.
+ *   event param of it has field: {value}
+ * @name Kekule.ChemWidget.GlyphMultiPathSettingPanel#valueInput
+ * @event
+ */
+Kekule.ChemWidget.GlyphMultiPathSettingPanel = Class.create(Kekule.Widget.Panel,
+/** @lends Kekule.ChemWidget.GlyphMultiPathSettingPanel# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemWidget.GlyphMultiPathSettingPanel',
+	/** @private */
+	DEF_PATH_COUNT: 2,
+	/** @private */
+	DEF_COMPONENTS: ['endingArrow'],
+	/** @construct */
+	initialize: function(/*$super, */parentOrElementOrDocument)
+	{
+		this.setPropStoreFieldValue('value', []);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
+
+		if (!this.getPathCount())
+			this.setPathCount(this.DEF_PATH_COUNT);
+		this.setActivePathIndex(0);
+
+		var reactChildSetterValueChangeBind = this.reactChildSetterValueChange.bind(this);
+		var reactChildSetterValueInputBind = this.reactChildSetterValueInput.bind(this);
+		this.addEventListener('valueChange', reactChildSetterValueChangeBind);
+		this.addEventListener('valueInput', reactChildSetterValueInputBind);
+		this.addEventListener('switch', this.reactPathTabSwitch.bind(this));
+	},
+	/** @private */
+	initProperties: function() {
+		this.defineProp('pathCount', {
+			'dataType': DataType.INT,
+			'getter': function() {
+				return this.getPathTabGroup().getTabButtons().length;
+			},
+			'setter': function(value)
+			{
+				this._updatePathTabGroup(value);
+			}
+		});
+		this.defineProp('pathSettingPanel', {'dataType': 'Kekule.ChemWidget.GlyphPathSettingPanel', 'serializable': false, 'setter': null});  // private
+		this.defineProp('pathTabGroup', {'dataType': 'Kekule.Widget.TabButtonGroup', 'serializable': false, 'setter': null});  // private
+
+		this.defineProp('activePathIndex', {'dataType': DataType.INT,
+			'getter': function()
+			{
+				return this.getPathTabGroup().getActiveTabIndex();
+			},
+			'setter': function(value)
+			{
+				this.getPathTabGroup().setActiveTabIndex(value);
+				this._switchToNewPathTab(value);
+			}
+		});
+
+		this.defineProp('value', {
+			'dataType': DataType.HASH,
+			'setter': function(value)
+			{
+				if (value)
+				{
+					var v = AU.toArray(value);
+					this.setPropStoreFieldValue('value', v);
+					if (v.length > this.getActivePathIndex())
+					{
+						this.getPathSettingPanel().setValue(v[this.getActivePathIndex()]);
+					}
+				}
+				else
+				{
+					this.setPropStoreFieldValue('value', []);
+				}
+			}
+		});
+		this.defineProp('components', {'dataType': DataType.ARRAY, 'serializable': false,
+			'getter': function(){ var p = this.getPathSettingPanel(); return p && p.getComponents(); },
+			'setter': function(value){ var p = this.getPathSettingPanel(); p.setComponents(value); }
+		});
+	},
+	/** @ignore */
+	doGetWidgetClassName: function(/*$super*/)
+	{
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_MULTIPATH_SETTING_PANEL;
+	},
+	/** @ignore */
+	doCreateSubElements: function(/*$super, */doc, rootElem)
+	{
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
+		var pathTabGroup = new Kekule.Widget.TabButtonGroup(this);
+		pathTabGroup.setTabButtonPosition(Kekule.Widget.Position.TOP).addClassName(CCNS.GLYPH_MULTIPATH_SETTING_PANEL_PATH_TABGROUP);
+		this.setPropStoreFieldValue('pathTabGroup', pathTabGroup);
+		var pathSettingPanel = new Kekule.ChemWidget.GlyphPathSettingPanel(this);
+		pathSettingPanel.addClassName(CCNS.GLYPH_MULTIPATH_SETTING_PANEL_PATH_SETTING_PANEL);
+		pathSettingPanel.setComponents(this.DEF_COMPONENTS)
+		this.setPropStoreFieldValue('pathSettingPanel', pathSettingPanel);
+		return result;
+	},
+
+	/** @private */
+	getStartingArrowSetter: function()
+	{
+		return this.getPathSettingPanel().getStartingArrowSetter();
+	},
+	/** @private */
+	getEndingArrowSetter: function()
+	{
+		return this.getPathSettingPanel().getEndingArrowSetter();
+	},
+
+	/** @private */
+	_updatePathTabGroup: function(pathCount)
+	{
+		var currActiveIndex = this.getActivePathIndex();
+		var currPathCount = this.getPathCount();
+		if (currPathCount !== pathCount)
+		{
+			var tabGroup = this.getPathTabGroup();
+			var currTabButtons = tabGroup.getTabButtons();
+			if (currPathCount > pathCount)
+			{
+				for (var i = currPathCount - 1; i >= pathCount; --i)
+				{
+					var btn = currTabButtons[i];
+					tabGroup.removeWidget(btn);
+				}
+			}
+			else // (currPathCount < pathCount)
+			{
+				for (var i = currPathCount; i < pathCount; ++i)
+				{
+					var btn = new Kekule.Widget.RadioButton(tabGroup);
+					var caption = Kekule.$L('ChemWidgetTexts.CAPTION_PATH_INDEX').format('' + (i + 1));
+					var hint = Kekule.$L('ChemWidgetTexts.HINT_PATH_INDEX').format('' + (i + 1));
+					btn.setText(caption).setHint(hint);
+				}
+			}
+		}
+	},
+	/** @private */
+	_switchToNewPathTab: function(index)
+	{
+		if (index >= 0)
+		{
+			var v = (this.getValue() || [])[index];
+			this.getPathSettingPanel().setValue(v || {});
+			//console.log('set value', v);
+		}
+	},
+
+	/** @private */
+	reactChildSetterValueChange: function(e)
+	{
+		var activeIndex = this.getActivePathIndex();
+		if (activeIndex >= 0)
+		{
+			var w = e.widget;
+			if (w === this.getPathSettingPanel())
+			{
+				var pathParams = w.getValue();
+				e.stopPropagation();
+				var newValue = this.getValue() || [];
+				newValue[activeIndex] = pathParams;
+				this.setPropStoreFieldValue('value', newValue);
+				this.notifyPropSet('value', newValue);
+				this.invokeEvent('valueChange', {'value': newValue});
+			}
+		}
+	},
+	/** @private */
+	reactChildSetterValueInput: function(e)
+	{
+		var activeIndex = this.getActivePathIndex();
+		if (activeIndex >= 0)
+		{
+			var w = e.widget;
+			if (w === this.getPathSettingPanel())
+			{
+				var pathParams = w.getValue();
+				e.stopPropagation();
+				var newValue = this.getValue() || [];
+				newValue[activeIndex] = pathParams;
+				this.setPropStoreFieldValue('value', newValue);
+				this.notifyPropSet('value', newValue);
+				this.invokeEvent('valueInput', {'value': newValue});
+			}
+		}
+	},
+	/** @private */
+	reactPathTabSwitch: function(e)
+	{
+		var w = e.widget;
+		if (w === this.getPathTabGroup())
+		{
+			var activeBtn = e.button;
+			var allBtns = this.getPathTabGroup().getTabButtons();
+			var activeIndex = allBtns.indexOf(activeBtn);
+			this._switchToNewPathTab(activeIndex);
+		}
+	}
+});
+
+
+/**
  * An panel to set the properties of a reaction arrow glyph.
  * @class
  * @augments Kekule.ChemWidget.GlyphPathSettingPanel
@@ -2604,9 +3006,9 @@ Kekule.ChemWidget.GlyphReactionArrowPathSettingPanel = Class.create(Kekule.ChemW
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemWidget.GlyphReactionArrowPathSettingPanel',
 	/** @ignore */
-	doGetValue: function($super)
+	doGetValue: function(/*$super*/)
 	{
-		var result = $super() || {};
+		var result = this.tryApplySuper('doGetValue')  /* $super() */ || {};
 		if (this._reactionArrowPresetSelector)
 		{
 			result.reactionArrowType = this._reactionArrowPresetSelector.getValue();
@@ -2614,9 +3016,9 @@ Kekule.ChemWidget.GlyphReactionArrowPathSettingPanel = Class.create(Kekule.ChemW
 		return result;
 	},
 	/** @ignore */
-	doSetValue: function($super, value)
+	doSetValue: function(/*$super, */value)
 	{
-		$super(value);
+		this.tryApplySuper('doSetValue', [value])  /* $super(value) */;
 		if (this._reactionArrowPresetSelector)
 		{
 			this._reactionArrowPresetSelector.setValue(value.reactionArrowType);
@@ -2624,17 +3026,17 @@ Kekule.ChemWidget.GlyphReactionArrowPathSettingPanel = Class.create(Kekule.ChemW
 		}
 	},
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.GLYPH_REACTION_ARROW_PATH_SETTING_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_REACTION_ARROW_PATH_SETTING_PANEL;
 	},
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
 		var secReactionArrowPreset = this.doCreateReactionArrowPresetSection(doc, rootElem, Kekule.$L('ChemWidgetTexts.CAPTION_REACTION_ARROW_TYPE'));
 		this._reactionArrowPresetSelector = secReactionArrowPreset.widget;
 		this._reactionArrowPresetElem = secReactionArrowPreset.elem;
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		this.updateComponents();
 		return result;
 	},
@@ -2647,9 +3049,9 @@ Kekule.ChemWidget.GlyphReactionArrowPathSettingPanel = Class.create(Kekule.ChemW
 		return {'elem': elem, 'widget': widget};
 	},
 	/** @private */
-	updateComponents: function($super)
+	updateComponents: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('updateComponents')  /* $super() */;
 		this._updateArrowSettingPanelEnableState();
 	},
 	/** @private */
@@ -2735,14 +3137,14 @@ Kekule.ChemWidget.GlyphReactionArrowPathSettingPanel = Class.create(Kekule.ChemW
 		}
 	},
 	/** @ignore */
-	getChildValueSetterWidgets: function($super)
+	getChildValueSetterWidgets: function(/*$super*/)
 	{
-		var result = $super();
+		var result = this.tryApplySuper('getChildValueSetterWidgets')  /* $super() */;
 		result.push(this._reactionArrowPresetSelector);
 		return result;
 	},
 	/** @ignore */
-	reactChildSetterValueChange: function($super, e)
+	reactChildSetterValueChange: function(/*$super, */e)
 	{
 		var w = e.widget;
 		if (w === this._reactionArrowPresetSelector)
@@ -2751,7 +3153,7 @@ Kekule.ChemWidget.GlyphReactionArrowPathSettingPanel = Class.create(Kekule.ChemW
 			// update path setting panel
 			this._updatePathParamsByReactionArrowPreset(e.value);
 		}
-		$super(e);
+		this.tryApplySuper('reactChildSetterValueChange', [e])  /* $super(e) */;
 	}
 });
 
@@ -2768,9 +3170,221 @@ Kekule.ChemWidget.GlyphArcPathSettingPanel = Class.create(Kekule.ChemWidget.Glyp
 	/** @private */
 	DEF_COMPONENTS: ['startingArrow', 'endingArrow'],
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.GLYPH_ARC_PATH_SETTING_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_ARC_PATH_SETTING_PANEL;
+	}
+});
+
+/**
+ * An panel to set the properties of multi-arc glyph.
+ * @class
+ * @augments Kekule.ChemWidget.GlyphMultiPathSettingPanel
+ */
+Kekule.ChemWidget.GlyphMultiArcPathSettingPanel = Class.create(Kekule.ChemWidget.GlyphMultiPathSettingPanel,
+/** @lends Kekule.ChemWidget.GlyphMultiArcPathSettingPanel# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemWidget.GlyphMultiArcPathSettingPanel',
+	/** @private */
+	DEF_COMPONENTS: ['startingArrow', 'endingArrow'],
+	/** @ignore */
+	doGetWidgetClassName: function(/*$super*/)
+	{
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_MULTIARC_PATH_SETTING_PANEL;
+	}
+});
+
+/**
+ * An base class for panels to set the properties of the electron pushing arrow glyph.
+ * @class
+ * @augments Kekule.Widget.Panel
+ */
+Kekule.ChemWidget.BaseGlyphElectronArrowSettingPanel = Class.create(Kekule.Widget.Panel,
+/** @lends Kekule.ChemWidget.BaseGlyphElectronArrowSettingPanel# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemWidget.BaseGlyphElectronArrowSettingPanel',
+	/** @private */
+	DEF_COMPONENTS: ['endingArrow'],
+	/** @construct */
+	initialize: function(/*$super, */parentOrElementOrDocument)
+	{
+		this._glyphPathSettingPanel = null;
+		this._endingArrowSetter = null;
+		this._arrowPresetSelector = null;
+
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
+
+		this.addEventListener('valueChange', this.reactChildSetterValueChange.bind(this));
+		this.addEventListener('valueInput', this.reactChildSetterValueInput.bind(this));
+	},
+	/** @private */
+	initProperties: function()
+	{
+		this.defineProp('value', {
+			'dataType': DataType.HASH,
+			'getter': function()
+			{
+				var result = this._glyphPathSettingPanel.getValue() || {};
+				result.electronCount = this._arrowPresetSelector.getValue();
+				return result;
+			},
+			'setter': function(value) {
+				this._glyphPathSettingPanel.setValue(value);
+				this._arrowPresetSelector.setValue(value && value.electronCount);
+				this._updateArrowSettingPanel();
+			}
+		});
+	},
+
+	/** @ignore */
+	doCreateSubElements: function(/*$super, */doc, rootElem)
+	{
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
+		var secArrowPreset = this.doCreateArrowPresetSection(doc, rootElem, Kekule.$L('ChemWidgetTexts.CAPTION_ELECTRON_PUSHING_ARROW_TYPE'));
+		this._arrowPresetSelector = secArrowPreset.widget;
+		this._arrowPresetElem = secArrowPreset.elem;
+		Kekule.HtmlElementUtils.addClass(this._arrowPresetElem, CCNS.GLYPH_REACTION_ARROW_PATH_SETTING_PANEL_ARROW_PRESET_SECTION);
+		var secGlyphPathSetter = this.doCreateGlyphPathSettingSection(doc, rootElem);
+		this._glyphPathSettingPanel = secGlyphPathSetter.widget;
+		if (this._glyphPathSettingPanel)
+		{
+			this._glyphPathSettingPanel.removeClassName(CNS.PANEL);  // remove panel border
+			if (this._glyphPathSettingPanel.setComponents)
+				this._glyphPathSettingPanel.setComponents(this.DEF_COMPONENTS);
+			if (this._glyphPathSettingPanel.getEndingArrowSetter)
+			{
+				this._endingArrowSetter = this._glyphPathSettingPanel.getEndingArrowSetter();
+				var AT = Kekule.Glyph.ArrowType;
+				this._endingArrowSetter.setAllowedArrowTypes([AT.OPEN, AT.TRIANGLE]);
+			}
+		}
+		return result.concat([secArrowPreset.elem, secGlyphPathSetter.elem]);
+	},
+	/** @private */
+	doCreateSectionElem: function(doc, parentElem, caption, className)
+	{
+		var elem = doc.createElement('div');
+		if (caption)
+		{
+			var titleElem = doc.createElement('label');
+			Kekule.DomUtils.setElementText(titleElem, caption);
+			titleElem.className = CCNS.GLYPH_PATH_SETTING_PANEL_SECTION_TITLE;
+			elem.appendChild(titleElem);
+		}
+		var cname = CCNS.GLYPH_PATH_SETTING_PANEL_SECTION;
+		if (className)
+			cname += ' ' + className;
+		elem.className = cname;
+		parentElem.appendChild(elem);
+		return elem;
+	},
+	/** @private */
+	doCreateArrowPresetSection: function(doc, parentElem, caption)
+	{
+		var elem = this.doCreateSectionElem(doc, parentElem, caption);
+		var widget = new Kekule.ChemWidget.GlyphElectronPushingArrowPresetSelector(this);
+
+		widget.appendToElem(elem);
+		return {'elem': elem, 'widget': widget};
+	},
+	/** @private */
+	doCreateGlyphPathSettingSection: function(doc, parentElem, caption)
+	{
+		var w = this.doCreateGlyphPathSettingWidget();
+		if (w)
+		{
+			var elem = this.doCreateSectionElem(doc, parentElem, caption);
+			w.appendToElem(elem);
+			return {'elem': elem, 'widget': w};
+		}
+		return null;
+	},
+	/** @private */
+	doCreateGlyphPathSettingWidget: function()
+	{
+		return null;  // descendants should override this method
+	},
+	/** @ignore */
+	reactChildSetterValueChange: function(/*$super, */e)
+	{
+		var w = e.widget;
+		//console.log('child value change');
+		if (w === this._arrowPresetSelector)
+		{
+			this._updateArrowSettingPanel();
+		}
+		if ([this._arrowPresetSelector, this._glyphPathSettingPanel].indexOf(w) >= 0)
+		{
+			e.stopPropagation();
+			this.invokeEvent('valueChange', {'value': this.getValue()});
+		}
+		this.tryApplySuper('reactChildSetterValueChange', [e])  /* $super(e) */;
+	},
+	/** @ignore */
+	reactChildSetterValueInput: function(/*$super, */e)
+	{
+		var w = e.widget;
+		if (w === this._arrowPresetSelector)
+		{
+			this._updateArrowSettingPanel();
+		}
+		if ([this._arrowPresetSelector, this._glyphPathSettingPanel].indexOf(w) >= 0)
+		{
+			e.stopPropagation();
+			this.invokeEvent('valueInput', {'value': this.getValue()});
+		}
+		this.tryApplySuper('reactChildSetterValueInput', [e])  /* $super(e) */;
+	},
+	/** @private */
+	_updateArrowSettingPanel: function()
+	{
+		var ASide = Kekule.Glyph.ArrowSide;
+		var setter = this._endingArrowSetter;
+		var eCount = this._arrowPresetSelector.getValue();
+		var sides = [];
+		if (eCount >= 2)
+			sides = [ASide.BOTH];
+		else if (eCount === 1)
+			sides = [ASide.SINGLE, ASide.REVERSED];
+		else
+			sides = [ASide.BOTH, ASide.SINGLE, ASide.REVERSED];
+		setter.setAllowedArrowSides(sides);
+	}
+});
+
+/**
+ * An panel to set the properties of an electron pushing arrow glyph.
+ * @class
+ * @augments Kekule.ChemWidget.BaseGlyphElectronArrowSettingPanel
+ */
+Kekule.ChemWidget.GlyphElectronPushingArrowSettingPanel = Class.create(Kekule.ChemWidget.BaseGlyphElectronArrowSettingPanel,
+/** @lends Kekule.ChemWidget.GlyphElectronPushingArrowSettingPanel# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemWidget.GlyphElectronPushingArrowSettingPanel',
+	/** @ignore */
+	doCreateGlyphPathSettingWidget: function()
+	{
+		return new Kekule.ChemWidget.GlyphArcPathSettingPanel(this);
+	}
+});
+
+/**
+ * An panel to set the properties of multi electron pushing arrow glyph (e.g. the bond forming arrow).
+ * @class
+ * @augments Kekule.ChemWidget.BaseGlyphElectronArrowSettingPanel
+ */
+Kekule.ChemWidget.GlyphMultiElectronPushingArrowSettingPanel = Class.create(Kekule.ChemWidget.BaseGlyphElectronArrowSettingPanel,
+/** @lends Kekule.ChemWidget.GlyphMultiElectronPushingArrowSettingPanel# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemWidget.GlyphMultiElectronPushingArrowSettingPanel',
+	/** @ignore */
+	doCreateGlyphPathSettingWidget: function()
+	{
+		return new Kekule.ChemWidget.GlyphMultiArcPathSettingPanel(this);
 	}
 });
 
@@ -2779,53 +3393,72 @@ Kekule.ChemWidget.GlyphArcPathSettingPanel = Class.create(Kekule.ChemWidget.Glyp
  * @class
  * @augments Kekule.ChemWidget.GlyphPathSettingPanel
  */
-Kekule.ChemWidget.GlyphElectronPushingArrowSettingPanel = Class.create(Kekule.ChemWidget.GlyphPathSettingPanel,
+Kekule.ChemWidget.GlyphElectronPushingArrowSettingPanel_OLD = Class.create(Kekule.ChemWidget.GlyphPathSettingPanel,
 /** @lends Kekule.ChemWidget.GlyphElectronPushingArrowSettingPanel# */
 {
 	/** @private */
 	CLASS_NAME: 'Kekule.ChemWidget.GlyphElectronPushingArrowSettingPanel',
 	/** @private */
-	DEF_COMPONENTS: ['endingArrow'],
+	DEF_COMPONENTS: ['endingArrow'/*, 'multiArrowSideRelation'*/],
 	/** @construct */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 		var AT = Kekule.Glyph.ArrowType;
 		this._endingArrowSetter.setAllowedArrowTypes([AT.OPEN, AT.TRIANGLE]);
 	},
 	/** @ignore */
-	doGetValue: function($super)
+	doGetValue: function(/*$super*/)
 	{
-		var result = $super() || {};
+		var result = this.tryApplySuper('doGetValue')  /* $super() */ || {};
 		if (this._arrowPresetSelector)
 		{
 			result.electronCount = this._arrowPresetSelector.getValue();
+			//result.reversedArrowSides = this._reversedArrowSideCheckBox.getChecked();
 		}
 		return result;
 	},
 	/** @ignore */
-	doSetValue: function($super, value)
+	doSetValue: function(/*$super, */value)
 	{
-		$super(value);
+		this.tryApplySuper('doSetValue', [value])  /* $super(value) */;
 		if (this._arrowPresetSelector)
 		{
 			this._arrowPresetSelector.setValue(value.electronCount);
 			this._updateArrowSettingPanel();
 		}
 	},
+
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doGetWidgetClassName: function(/*$super*/)
 	{
-		return $super() + ' ' + CCNS.GLYPH_ELECTRON_PUSHING_ARROW_SETTING_PANEL;
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_ELECTRON_PUSHING_ARROW_SETTING_PANEL;
 	},
+
+	/* @ignore */
+	/*
+	updateComponents: function($super)
+	{
+		$super();
+		var components = this.getComponents() || this.DEF_COMPONENTS;
+		var SU = Kekule.StyleUtils;
+		SU.setDisplay(this._multiArrowSideRelationElem, components.indexOf('multiArrowSideRelation') >= 0);
+	},
+	*/
 	/** @ignore */
-	doCreateSubElements: function($super, doc, rootElem)
+	doCreateSubElements: function(/*$super, */doc, rootElem)
 	{
 		var secArrowPreset = this.doCreateArrowPresetSection(doc, rootElem, Kekule.$L('ChemWidgetTexts.CAPTION_ELECTRON_PUSHING_ARROW_TYPE'));
 		this._arrowPresetSelector = secArrowPreset.widget;
 		this._arrowPresetElem = secArrowPreset.elem;
-		var result = $super(doc, rootElem);
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
 		//this.updateComponents();
+		/*
+		// for bond forming arrow, reversed arrow side
+		var secMultiArrowSideRelation = this.doCreateMultiArrowSideRelationSection(doc, rootElem, Kekule.$L('ChemWidgetTexts.CAPTION_MULTI_ARROW_SIDE_RELATION'));
+		this._multiArrowSideRelationElem = secMultiArrowSideRelation.elem;
+		this._reversedArrowSideCheckBox = secMultiArrowSideRelation.widget;
+		*/
 		return result;
 	},
 	/** @private */
@@ -2837,28 +3470,142 @@ Kekule.ChemWidget.GlyphElectronPushingArrowSettingPanel = Class.create(Kekule.Ch
 		widget.appendToElem(elem);
 		return {'elem': elem, 'widget': widget};
 	},
-	/** @ignore */
-	getChildValueSetterWidgets: function($super)
+	/* @private */
+	/*
+	doCreateMultiArrowSideRelationSection: function(doc, parentElem, caption)
 	{
-		var result = $super();
+		var elem = doc.createElement('span');
+		var widget = new Kekule.Widget.CheckBox(this);
+		widget.setText(Kekule.$L('ChemWidgetTexts.CAPTION_OPPOSITE_ARROW_SIDES'));
+		widget.appendToElem(elem);
+		if (parentElem)
+			parentElem.appendChild(elem);
+		return {'elem': elem, 'widget': widget};
+	},
+	*/
+	/** @ignore */
+	getChildValueSetterWidgets: function(/*$super*/)
+	{
+		var result = this.tryApplySuper('getChildValueSetterWidgets')  /* $super() */;
 		result.push(this._arrowPresetSelector);
+		result.push(this._reversedArrowSideCheckBox);
 		return result;
 	},
 	/** @ignore */
-	reactChildSetterValueChange: function($super, e)
+	reactChildSetterValueChange: function(/*$super, */e)
 	{
 		var w = e.widget;
 		if (w === this._arrowPresetSelector)
 		{
 			this._updateArrowSettingPanel();
 		}
-		$super(e);
+		this.tryApplySuper('reactChildSetterValueChange', [e])  /* $super(e) */;
 	},
 	/** @private */
 	_updateArrowSettingPanel: function()
 	{
 		var ASide = Kekule.Glyph.ArrowSide;
-		var setter = this._endingArrowSetter;
+		var setter = this.getEndingArrowSetter(); //this._endingArrowSetter;
+		var eCount = this._arrowPresetSelector.getValue();
+		var sides = [];
+		if (eCount >= 2)
+			sides = [ASide.BOTH];
+		else if (eCount === 1)
+			sides = [ASide.SINGLE, ASide.REVERSED];
+		else
+			sides = [ASide.BOTH, ASide.SINGLE, ASide.REVERSED];
+		setter.setAllowedArrowSides(sides);
+	}
+});
+
+/**
+ * An panel to set the properties of multi electron pushing arrow glyph (e.g. the bond forming arrow).
+ * @class
+ * @augments Kekule.ChemWidget.GlyphMultiPathSettingPanel
+ */
+Kekule.ChemWidget.GlyphMultiElectronPushingArrowSettingPanel_OLD = Class.create(Kekule.ChemWidget.GlyphMultiPathSettingPanel,
+/** @lends Kekule.ChemWidget.GlyphMultiElectronPushingArrowSettingPanel# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemWidget.GlyphMultiElectronPushingArrowSettingPanel',
+	/** @private */
+	DEF_COMPONENTS: ['endingArrow'],
+	/** @ignore */
+	doGetWidgetClassName: function(/*$super*/)
+	{
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CCNS.GLYPH_MULTI_ELECTRON_PUSHING_ARROW_SETTING_PANEL;
+	},
+
+	/** @construct */
+	initialize: function(/*$super, */parentOrElementOrDocument)
+	{
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
+		var AT = Kekule.Glyph.ArrowType;
+		this._endingArrowSetter = this.getPathSettingPanel().getEndingArrowSetter();
+		this._endingArrowSetter.setAllowedArrowTypes([AT.OPEN, AT.TRIANGLE]);
+	},
+	/** @ignore */
+	doGetValue: function(/*$super*/)
+	{
+		var result = this.tryApplySuper('doGetValue')  /* $super() */ || {};
+		if (this._arrowPresetSelector)
+		{
+			result.electronCount = this._arrowPresetSelector.getValue();
+			//result.reversedArrowSides = this._reversedArrowSideCheckBox.getChecked();
+		}
+		return result;
+	},
+	/** @ignore */
+	doSetValue: function(/*$super, */value)
+	{
+		this.tryApplySuper('doSetValue', [value])  /* $super(value) */;
+		if (this._arrowPresetSelector)
+		{
+			this._arrowPresetSelector.setValue(value.electronCount);
+			this._updateArrowSettingPanel();
+		}
+	},
+
+	/** @ignore */
+	doCreateSubElements: function(/*$super, */doc, rootElem)
+	{
+		var secArrowPreset = this.doCreateArrowPresetSection(doc, rootElem, Kekule.$L('ChemWidgetTexts.CAPTION_ELECTRON_PUSHING_ARROW_TYPE'));
+		this._arrowPresetSelector = secArrowPreset.widget;
+		this._arrowPresetElem = secArrowPreset.elem;
+		var result = this.tryApplySuper('doCreateSubElements', [doc, rootElem])  /* $super(doc, rootElem) */;
+
+		return result;
+	},
+	/** @private */
+	doCreateSectionElem: function(doc, parentElem, caption, className)
+	{
+		var elem = doc.createElement('div');
+		var titleElem = doc.createElement('label');
+		Kekule.DomUtils.setElementText(titleElem, caption);
+		//titleElem.className = CCNS.GLYPH_PATH_SETTING_PANEL_SECTION_TITLE;
+		elem.appendChild(titleElem);
+		var cname = CCNS.GLYPH_PATH_SETTING_PANEL_SECTION;
+		if (className)
+			cname += ' ' + className;
+		elem.className = cname;
+		parentElem.appendChild(elem);
+		return elem;
+	},
+	/** @private */
+	doCreateArrowPresetSection: function(doc, parentElem, caption)
+	{
+		var elem = this.doCreateSectionElem(doc, parentElem, caption);
+		var widget = new Kekule.ChemWidget.GlyphElectronPushingArrowPresetSelector(this);
+
+		widget.appendToElem(elem);
+		return {'elem': elem, 'widget': widget};
+	},
+
+	/** @private */
+	_updateArrowSettingPanel: function()
+	{
+		var ASide = Kekule.Glyph.ArrowSide;
+		var setter = this.getEndingArrowSetter(); //this._endingArrowSetter;
 		var eCount = this._arrowPresetSelector.getValue();
 		var sides = [];
 		if (eCount >= 2)

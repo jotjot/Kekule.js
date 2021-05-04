@@ -1642,6 +1642,7 @@ Kekule.Render.MetaShapeUtils = {
 	/** @private */
 	_getDistanceToRect: function(coord, shapeInfo)
 	{
+		/* //Not assurate, now checking the coord distance to each edge instead
 		var cornerCoords = shapeInfo.coords;
 		var dx0 = (coord.x - cornerCoords[0].x);
 		var dx1 = (coord.x - cornerCoords[1].x);
@@ -1660,6 +1661,18 @@ Kekule.Render.MetaShapeUtils = {
 					CU.getDistance(coord, {'x': cornerCoords[1].x, 'y': cornerCoords[0].y})
 			);
 		}
+		*/
+		var cornerCoords = shapeInfo.coords;
+		var SU = Kekule.Render.MetaShapeUtils;
+		var checkShape = Object.extend({}, shapeInfo);
+		checkShape.shapeType = Kekule.Render.MetaShapeType.POLYGON;
+		checkShape.coords = [
+			{x: cornerCoords[0].x, y: cornerCoords[0].y},
+			{x: cornerCoords[1].x, y: cornerCoords[0].y},
+			{x: cornerCoords[1].x, y: cornerCoords[1].y},
+			{x: cornerCoords[0].x, y: cornerCoords[1].y}
+		];
+		return SU._getDistanceToPolygon(coord, checkShape);
 	},
 	/** @private */
 	_getDistanceToPolygon: function(coord, shapeInfo)
@@ -1842,6 +1855,7 @@ Kekule.Render.MetaShapeUtils = {
 	/** @private */
 	_isInsidePolygon: function(coord, shapeInfo)
 	{
+		/*
 		var C = Kekule.CoordUtils;
 		var lineCoords = shapeInfo.coords;
 		var crossCount = 0;
@@ -1862,6 +1876,41 @@ Kekule.Render.MetaShapeUtils = {
 			}
 		}
 		return (crossCount % 2 === 0);
+    */
+		var x = coord.x, y = coord.y;
+		var coords = shapeInfo.coords;
+		// first check if the point is outside of the min-max coord box of polygon, if so, the point is of course outside of shape
+		var minCoord = {x: coords[0].x, y: coords[0].y};
+		var maxCoord = {x: coords[0].x, y: coords[0].y};
+		for (var i = 1, l = coords.length; i < l; ++i)
+		{
+			var currCoord = coords[i];
+			if (currCoord.x < minCoord.x)
+				minCoord.x = currCoord.x;
+			else if (currCoord.x > maxCoord.x)
+				maxCoord.x = currCoord.x;
+			if (currCoord.y < minCoord.y)
+				minCoord.y = currCoord.y;
+			else if (currCoord.y > maxCoord.y)
+				maxCoord.y = currCoord.y;
+		}
+		if (!Kekule.CoordUtils.insideRect(coord, minCoord, maxCoord))
+			return false;
+
+		// the algorithm from https://blog.csdn.net/hjh2005/article/details/9246967
+		var result = false;
+		for (var i = 0, l = coords.length, j = l - 1; i < l; ++i)
+		{
+			var coordi = coords[i];
+			var coordj = coords[j];
+			if (((coordi.y < y && coordj.y >= y) || (coordj.y < y && coordi.y >= y)) && (coordi.x <= x || coordj.x <= x))
+			{
+				if (coordi.x + (y - coordi.y) / (coordj.y - coordi.y) * (coordj.x - coordi.x) < x)
+					result = !result;
+			}
+			j = i;
+		}
+		return result;
 	},
 	/**
 	 * Calc cross point of coord to line (lineCoord1 - lineCoord2).
@@ -2485,6 +2534,74 @@ Kekule.Render.MetaShapeUtils = {
  */
 Kekule.Render.RenderOptionUtils = {
 	/**
+	 * Returns a default definition of all render option fields.
+	 * @returns {Array} Array of definition hashes.
+	 */
+	getOptionDefinitions: function()
+	{
+		return [
+			{'name': 'expanded', dataType: DataType.BOOL, 'targetClass': Kekule.StructureFragment},
+
+			{'name': 'unitLength', dataType: DataType.FLOAT, 'targetClass': Kekule.ChemObject},
+
+			{'name': 'moleculeDisplayType', dataType: DataType.INT, 'enumSource':  Kekule.Render.MoleculeDisplayType, 'targetClass': Kekule.StructureFragment},
+			{'name': 'renderType', dataType: DataType.INT, 'enumSource':  Kekule.Render.BondRenderType, 'targetClass': Kekule.ChemStructureConnector},
+			{'name': 'nodeDisplayMode', dataType: DataType.INT, 'enumSource':  Kekule.Render.NodeLabelDisplayMode, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'hydrogenDisplayLevel', dataType: DataType.INT, 'enumSource':  Kekule.Render.HydrogenDisplayLevel, 'targetClass': Kekule.ChemStructureNode},
+
+			{'name': 'showCharge', dataType: DataType.BOOL, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'chargeMarkType', dataType: DataType.INT, 'enumSource':  Kekule.Render.ChargeMarkRenderType, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'chargeMarkFontSize', dataType: DataType.FLOAT, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'chargeMarkMargin', dataType: DataType.FLOAT, 'targetClass': Kekule.ChemStructureNode},
+			/*
+			 {'name': 'chargeMarkCircleWidth', dataType: DataType.FLOAT, 'targetClass': Kekule.ChemStructureNode},
+			 */
+			{'name': 'chemMarkerFontSize', dataType: DataType.FLOAT, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'chemMarkerMargin', dataType: DataType.FLOAT, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'distinguishSingletAndTripletRadical', dataType: DataType.BOOL, 'targetClass': Kekule.ChemStructureNode},
+
+			{'name': 'fontSize', dataType: DataType.NUMBER},
+			//{'name': 'atomFontSize', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'fontFamily', dataType: DataType.STRING},
+			//{'name': 'atomFontFamily', dataType: DataType.STRING, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'supFontSizeRatio', dataType: DataType.FLOAT},
+			{'name': 'subFontSizeRatio', dataType: DataType.FLOAT},
+			{'name': 'superscriptOverhang', dataType: DataType.FLOAT},
+			{'name': 'subscriptOversink', dataType: DataType.FLOAT},
+			{'name': 'textBoxXAlignment', dataType: DataType.INT, 'enumSource': Kekule.Render.BoxXAlignment},
+			{'name': 'textBoxYAlignment', dataType: DataType.INT, 'enumSource': Kekule.Render.BoxYAlignment},
+			{'name': 'horizontalAlign', dataType: DataType.INT, 'enumSource': Kekule.Render.TextAlign},
+			{'name': 'verticalAlign', dataType: DataType.INT, 'enumSource': Kekule.Render.TextAlign},
+			{'name': 'charDirection', dataType: DataType.INT, 'enumSource': Kekule.Render.TextDirection},
+			{'name': 'customLabel', dataType: DataType.STRING, 'targetClass': Kekule.ChemStructureNode},
+
+			{'name': 'bondLineWidth', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'boldBondLineWidth', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'hashSpacing', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'multipleBondSpacingRatio', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'multipleBondSpacingAbs', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'multipleBondMaxAbsSpacing', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'bondArrowLength', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'bondArrowWidth', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'bondWedgeWidth', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'bondWedgeHashMinWidth', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'bondLengthScaleRatio', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+
+			{'name': 'color', dataType: DataType.STRING},
+			{'name': 'atomColor', dataType: DataType.STRING, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'bondColor', dataType: DataType.STRING, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'useAtomSpecifiedColor', dataType: DataType.BOOL, 'targetClass': Kekule.ChemStructureObject},
+
+			{'name': 'opacity', dataType: DataType.FLOAT, 'targetClass': Kekule.ChemObject},
+
+			{'name': 'fillColor', dataType: DataType.STRING},
+			{'name': 'strokeColor', dataType: DataType.STRING},
+			{'name': 'strokeWidth', dataType: DataType.NUMBER},
+
+			{'name': 'atomRadius', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject}
+		];
+	},
+	/**
 	 * Create a new options object, inherits settings from options and local renderOptions of obj.
 	 * @param {Kekule.ChemObject} obj
 	 * @param {Hash} options
@@ -2830,6 +2947,30 @@ Kekule.Render.RenderOptionUtils = {
  * @class
  */
 Kekule.Render.Render3DOptionUtils = {
+	/**
+	 * Returns a default definition of all render option fields.
+	 * @returns {Array} Array of definition hashes.
+	 */
+	getOptionDefinitions: function()
+	{
+		return [
+			{'name': 'displayMultipleBond', dataType: DataType.BOOL, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'useVdWRadius', dataType: DataType.BOOL, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'nodeRadius', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'connectorRadius', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'nodeRadiusRatio', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureNode},
+			{'name': 'connectorRadiusRatio', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'connectorLineWidth', dataType: DataType.NUMBER, 'targetClass': Kekule.ChemStructureObject},
+
+			{'name': 'color', dataType: DataType.STRING},
+			{'name': 'atomColor', dataType: DataType.STRING, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'bondColor', dataType: DataType.STRING, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'useAtomSpecifiedColor', dataType: DataType.BOOL, 'targetClass': Kekule.ChemStructureObject},
+			{'name': 'hideHydrogens', dataType: DataType.BOOL, 'targetClass': Kekule.StructureFragment},
+
+			{'name': 'bondSpliceMode', dataType: DataType.INT, 'enumSource': Kekule.Render.Bond3DSpliceMode, 'targetClass': Kekule.ChemStructureObject}
+		];
+	},
 	/**
 	 * Retrieve bond render type from render3DOptions of a chem object.
 	 * @param {Object} renderOptions

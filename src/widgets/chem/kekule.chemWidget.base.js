@@ -54,13 +54,18 @@ Kekule.ChemWidget.ComponentWidgetNames =
 	config: 'config',
 
 	objInspector: 'objInspector',
+	issueInspector: 'issueInspector',
 	undo: 'undo',
 	redo: 'redo',
 	copy: 'copy',
 	cut: 'cut',
 	paste: 'paste',
 	cloneSelection: 'cloneSelection',
+	selectAll: 'selectAll',
 	toggleSelect: 'toggleSelect',
+	eraseSelection: 'eraseSelection',
+	recheckIssues: 'recheckIssues',
+	toggleShowAllIssues: 'toggleShowAllIssues',
 	dragScroll: 'dragScroll',
 	erase: 'erase',
 	manipulate: 'manipulate',
@@ -80,7 +85,9 @@ Kekule.ChemWidget.ComponentWidgetNames =
 	fontSize: 'fontSize',
 	color: 'color',
 	textDirection: 'textDirection',
-	textAlign: 'textAlign'
+	textAlign: 'textAlign',
+
+	nodeDisplayMode: 'nodeDisplayMode'
 };
 
 /** @ignore */

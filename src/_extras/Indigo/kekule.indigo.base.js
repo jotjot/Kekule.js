@@ -22,8 +22,10 @@ var EU = Kekule.EmscriptenUtils;
  * @ignore
  */
 var indigoInitOptions = {
-	usingModulaize: true,  // whether using modularize option to build OpenBabel.js
+	usingModulaize: true,  // whether using modularize option to build Indigo.js
 	moduleName: 'IndigoModule', // the name of OpenBabl module
+	moduleInitEventName: 'Indigo.Initialized',
+	moduleInitCallbackName: '__$indigoInitialized$__',
 	indigoAdaptFuncName: 'CreateIndigo'
 };
 
@@ -59,6 +61,11 @@ Kekule.Indigo = {
 		}
 		return KI._module;
 	},
+	setModule: function(module)
+	{
+		KI._module = module;
+		EU.setRootModule(indigoInitOptions.moduleName, module);
+	},
 	/**
 	 * Returns Indigo adapter instance.
 	 */
@@ -92,11 +99,12 @@ Kekule.Indigo = {
 	{
 		if (!KI.isScriptLoaded())  // Indigo not loaded?
 		{
-			KI.loadIndigoScript(document, function(){
+			KI.loadIndigoScript(Kekule.$jsRoot.document, function(error){
 				//Kekule.IO.registerAllInChIFormats();
-				KI._enableAllFunctions();
+				if (!error)
+					KI._enableAllFunctions();
 				if (callback)
-					callback();
+					callback(error);
 			});
 		}
 		else
@@ -108,7 +116,8 @@ Kekule.Indigo = {
 	},
 	_enableAllFunctions: function()
 	{
-		if (KI.isScriptLoaded())
+		//if (KI.isScriptLoaded())
+		if (EU.isModuleReady(indigoInitOptions.moduleName))
 		{
 			var funcs = KI._enableFuncs;
 			for (var i = 0, l = funcs.length; i < l; ++i)
@@ -124,18 +133,26 @@ Kekule.Indigo = {
 /** @ignore */
 Kekule.Indigo.getIndigoPath = function()
 {
-	var isMin = Kekule.scriptSrcInfo.useMinFile;
-	var path = isMin? 'extra/': '_extras/Indigo/';
-	path = Kekule.scriptSrcInfo.path + path;
+	var path = Kekule.environment.getEnvVar('indigo.path');
+	if (!path)
+	{
+		var isMin = Kekule.isUsingMinJs(); // Kekule.scriptSrcInfo.useMinFile;
+		path = isMin ? 'extra/' : '_extras/Indigo/';
+		path = Kekule.getScriptPath() + path;  // Kekule.scriptSrcInfo.path + path;
+	}
 	return path;
 };
 /** @ignore */
 Kekule.Indigo.getIndigoScriptUrl = function()
 {
-	var result = KI.getIndigoPath() + KI.SCRIPT_FILE;
-	var isMin = Kekule.scriptSrcInfo.useMinFile;
-	if (!isMin)
-		result += '.dev';
+	var result = Kekule.environment.getEnvVar('indigo.scriptSrc');
+	if (!result)
+	{
+		result = KI.getIndigoPath() + KI.SCRIPT_FILE;
+		var isMin = Kekule.isUsingMinJs();  // Kekule.scriptSrcInfo.useMinFile;
+		if (!isMin)
+			result += '.dev';
+	}
 	return result;
 };
 Kekule.Indigo.getIndigoHelperScriptUrl = function()
@@ -147,18 +164,44 @@ Kekule.Indigo.getIndigoHelperScriptUrl = function()
 Kekule.Indigo.loadIndigoScript = function(doc, callback)
 {
 	if (!doc)
-		doc = document;
-	var done = function()
+		doc = Kekule.$jsRoot.document;
+	var done = function(error)
 	{
-		Kekule.Indigo.getIndigo();
+		KI._scriptLoadedBySelf = !error;
+		if (!error)
+			Kekule.Indigo.getIndigo();
 		if (callback)
-			callback();
+			callback(error);
 	};
+
+	if (!KI._scriptLoadedBySelf && !KI.isScriptLoaded())
+	{
+		var filePath = KI.getIndigoScriptUrl();
+
+		EU.loadScript(filePath,
+			function(error){
+				if (!error)
+					Kekule.ScriptFileUtils.appendScriptFiles(doc, [KI.getIndigoHelperScriptUrl()], done);
+				else
+					done(error);
+			},
+			doc, indigoInitOptions);
+	}
+	else
+	{
+		done();
+	}
+
+	/*
 	if (!KI._scriptLoadedBySelf && !KI.isScriptLoaded())
 	{
 		//console.log('load');
-		var urls = [KI.getIndigoScriptUrl(), KI.getIndigoHelperScriptUrl()];
-		Kekule.ScriptFileUtils.appendScriptFiles(doc, urls, done);
+		//var urls = [KI.getIndigoScriptUrl(), KI.getIndigoHelperScriptUrl()];
+		//Kekule.ScriptFileUtils.appendScriptFiles(doc, urls, done);
+		EU.loadScript(KI.getIndigoScriptUrl(), function(){
+			// when finish initialize indigo.js, load the adapter
+			Kekule.ScriptFileUtils.appendScriptFiles(doc, [KI.getIndigoHelperScriptUrl()], done);
+		}, doc, indigoInitOptions);
 		KI._scriptLoadedBySelf = true;
 	}
 	else
@@ -167,7 +210,7 @@ Kekule.Indigo.loadIndigoScript = function(doc, callback)
 		if (callback)
 			callback();
 	}
-
+	*/
 };
 
 var KI = Kekule.Indigo;
@@ -179,8 +222,39 @@ var KI = Kekule.Indigo;
  * @ignore
  */
 Kekule.Indigo.AdaptUtils = {
+	/**
+	 * Convert instance of Indigo molecule to Kekule.Molecule.
+	 * @param {Object} iMol
+	 * @returns {Kekule.Molecule}
+	 */
+	iMolToKekule: function(iMol)
+	{
+		var Indigo = KI.getIndigo();
+		var molData = Indigo.molfile(iMol);
+		Indigo.free(iMol);
+		var result = Kekule.IO.loadFormatData(molData, Kekule.IO.DataFormat.MOL);
+		return result;
+	},
+
+	/**
+	 * Convert instance of Kekule.StructureFragment to Indigo molecule instance.
+	 * @param {Kekule.StructureFragment} kMol
+	 * @returns {Object}
+	 */
+	kMolToIndigo: function(kMol)
+	{
+		var Indigo = KI.getIndigo();
+		var molData = Kekule.IO.saveFormatData(kMol, Kekule.IO.DataFormat.MOL);
+		var result = Indigo.loadMoleculeFromString(molData);
+		return result;
+	},
 };
 
-Kekule._registerAfterLoadSysProc(function() {if (KI._autoEnabled) KI._enableAllFunctions()} );
+Kekule._registerAfterLoadSysProc(function() {
+	if (KI._autoEnabled && KI.isScriptLoaded())
+	{
+		EU.ensureModuleReady(Kekule.$jsRoot.document, indigoInitOptions, KI._enableAllFunctions);
+	}
+});
 
 })(this);

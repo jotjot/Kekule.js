@@ -28,9 +28,9 @@ Kekule.GraphElement = Class.create(ObjectEx,
 	/** @private */
 	CLASS_NAME: 'Kekule.GraphElement',
 	/** @constructs */
-	initialize: function($super)
+	initialize: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this._data = {};
 	},
 	/** @private */
@@ -89,9 +89,9 @@ Kekule.GraphVertex = Class.create(Kekule.GraphElement,
 	/** @private */
 	CLASS_NAME: 'Kekule.GraphVertex',
 	/** @constructs */
-	initialize: function($super)
+	initialize: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this.setPropStoreFieldValue('edges', []);
 		//this.setData({});
 	},
@@ -205,10 +205,10 @@ Kekule.GraphEdge = Class.create(Kekule.GraphElement,
 	/** @private */
 	CLASS_NAME: 'Kekule.GraphEdge',
 	/** @constructs */
-	initialize: function($super)
+	initialize: function(/*$super*/)
 	{
 		this.setPropStoreFieldValue('weight', 1);  // default weight
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this.setPropStoreFieldValue('vertexes', []);
 		//this.setData({});
 	},
@@ -267,9 +267,9 @@ Kekule.Graph = Class.create(ObjectEx,
 	/** @private */
 	VISITED_KEY: '__$visited__',
 	/** @constructs */
-	initialize: function($super)
+	initialize: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this.setPropStoreFieldValue('vertexes', []);
 		this.setPropStoreFieldValue('edges', []);
 	},
@@ -486,7 +486,7 @@ Kekule.GraphAdaptUtils = {
 	 *     connectorClasses: array, only connector instanceof those classes will be included in graph.
 	 *     bondTypes: array, only bond types in this array will be converted into edge in graph.
 	 *     expandSubStructures: bool, when put nodes and connectors in graph also. Default is true.
-	 *     ignoreBondedHydrogen: Whether bonded hydrogen atom (on bond end) are converted into graph. Default is true.
+	 *     ignoreBondedHydrogen: Whether bonded hydrogen atom (on single bond end) are converted into graph. Default is true.
 	 *
 	 *     nodeFilter: func(node, allCtabConnectors), returns bool, a custom function, if false returned, this node will be ignored
 	 *     connectorFilter: func(connector, allCtabNodes), returns bool, a custom function, if false returned, this connector will be ignored
@@ -529,7 +529,13 @@ Kekule.GraphAdaptUtils = {
 								if (allConnectors)
 									linkedConns = AU.intersect(linkedConns, allConnectors);
 								if (linkedConns.length <= 1)
-									return false;
+								{
+									var conn = linkedConns[0];
+									if (!conn)
+										return false;
+									else if (conn.isSingleBond && conn.isSingleBond())  // ignore only the H atoms connected with single bond, preserve other unusual (may be illegal) forms
+										return false;
+								}
 							}
 						}
 						return true;

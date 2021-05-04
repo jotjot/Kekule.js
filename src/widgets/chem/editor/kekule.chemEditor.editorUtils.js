@@ -249,13 +249,25 @@ Kekule.Editor.StructureUtils = {
 	 * Returns label represents the chem node situation.
 	 * @param {Kekule.ChemStructureNode} node
 	 * @param {Object} labelConfigs
+	 * @param {Hash} options
 	 * @returns {String}
 	 */
-	getChemStructureNodeLabel: function(node, labelConfigs)
+	getChemStructureNodeLabel: function(node, labelConfigs, options)
 	{
 		//var labelConfigs = this.getLabelConfigs();
 		if (node.getIsotopeId)  // atom
-			return node.getIsotopeId();
+		{
+			var s = node.getIsotopeId();
+			if (options && options.includeExplicitHydrogens)
+			{
+				var explicitHCount = node.getExplicitHydrogenCount && node.getExplicitHydrogenCount();
+				if (explicitHCount > 0)
+					s += 'H';
+				if (explicitHCount > 1)
+					s += explicitHCount.toString();
+			}
+			return s;
+		}
 		else if (node instanceof Kekule.SubGroup)
 		{
 			var groupLabel = node.getAbbr() || node.getFormulaText();
@@ -273,15 +285,16 @@ Kekule.Editor.StructureUtils = {
 	 * Returns label represents all the chem nodes situation.
 	 * @param {Array} nodes
 	 * @param {Object} labelConfigs
+	 * @param {Hash} options
 	 * @returns {String}
 	 */
-	getAllChemStructureNodesLabel: function(nodes, labelConfigs)
+	getAllChemStructureNodesLabel: function(nodes, labelConfigs, options)
 	{
 		var nodeLabel;
 		for (var i = 0, l = nodes.length; i < l; ++i)
 		{
 			var node = nodes[i];
-			var currLabel = Kekule.Editor.StructureUtils.getChemStructureNodeLabel(node, labelConfigs);
+			var currLabel = Kekule.Editor.StructureUtils.getChemStructureNodeLabel(node, labelConfigs, options);
 			if (!nodeLabel)
 				nodeLabel = currLabel;
 			else
@@ -347,6 +360,10 @@ Kekule.Editor.StructureUtils = {
 	}
 };
 
+/**
+ * Util methods about chem structure in repositories.
+ * @class
+ */
 Kekule.Editor.RepositoryStructureUtils = {
 	/** @private */
 	_calcNodeMergeAdjustRotateAngle: function(editor, mergeNode, destNode)
@@ -499,6 +516,139 @@ Kekule.Editor.RepositoryStructureUtils = {
 			var obj = objects[i];
 			obj.transformAbsCoordByMatrix(matrix, childMatrix, coordMode, true, allowCoordBorrow);
 			obj.scaleSize(transformParams.scale, coordMode, true, allowCoordBorrow);
+		}
+	}
+};
+
+/**
+ * Util methods about operations for editor.
+ * @class
+ */
+Kekule.Editor.OperationUtils = {
+	/**
+	 * Create a node modification operation for editor.
+	 * @param {Kekule.ChemStructureNode} node
+	 * @param {Kekule.ChemStructureNode} newNode
+	 * @param {Class} newNodeClass
+	 * @param {Hash} modifiedProps
+	 * @param {Kekule.Editor.BaseEditor} editor
+	 * @returns {Kekule.Operation}
+	 */
+	createNodeModificationOperation: function(node, newNode, newNodeClass, modifiedProps, editor)
+	{
+		var operGroup, oper;
+		var oldNodeClass = node.getClass();
+		if (newNode && !newNodeClass)
+			newNodeClass = newNode.getClass();
+		if (newNode || newNodeClass !== oldNodeClass)  // need to replace node
+		{
+			operGroup = new Kekule.MacroOperation();
+			if (!newNode)
+				newNode = new newNodeClass();
+			var tempNode = new Kekule.ChemStructureNode();
+			tempNode.assign(node);
+			newNode.assign(tempNode);  // copy some basic info of old node
+			var operReplace = new Kekule.ChemStructOperation.ReplaceNode(node, newNode, null, editor);
+			operGroup.add(operReplace);
+		}
+		else  // no need to replace
+			newNode = node;
+
+		if (modifiedProps)
+		{
+			if (Kekule.ObjUtils.match(newNode, modifiedProps))
+			{
+				// old value same as new value, no need to create operation
+				// console.log(modifiedProps);
+			}
+			else
+			{
+				oper = new Kekule.ChemObjOperation.Modify(newNode, modifiedProps, editor);
+				if (operGroup)
+					operGroup.add(oper);
+			}
+		}
+
+		var operation = operGroup || oper;
+		return operation;
+	},
+	/**
+	 * Create a node modification operation for editor.
+	 * @param {Kekule.ChemStructureNode} node
+	 * @param {Hash} newData
+	 * @param {Kekule.Editor.BaseEditor} editor
+	 * @returns {Kekule.Operation}
+	 */
+	createNodeModificationOperationFromData: function(node, newData, editor)
+	{
+		if (!newData)
+			return null;
+
+		var nodeClass = newData.nodeClass;
+		var modifiedProps = newData.props;
+		var repItem = newData.repositoryItem;
+		var newNode;
+
+		if (repItem)  // need to apply structure repository item
+		{
+			var repResult = repItem.createObjects(node) || {};
+			var repObjects = repResult.objects;
+			var transformParams = Kekule.Editor.RepositoryStructureUtils.calcRepObjInitialTransformParams(editor, repItem, repResult, node, null);
+			editor.transformCoordAndSizeOfObjects(repObjects, transformParams);
+			newNode = repObjects[0];
+			nodeClass = newNode.getClass();
+		}
+
+		if (newData.isUnknownPseudoatom && !editor.getEditorConfigs().getInteractionConfigs().getAllowUnknownAtomSymbol())
+			nodeClass = null;
+
+		if (!nodeClass)
+		{
+			Kekule.error(Kekule.$L('ErrorMsg.INVALID_ATOM_SYMBOL'));
+			return null;
+		}
+		else
+		{
+			if (modifiedProps)
+			{
+				var mProps = Object.extend({}, modifiedProps);  // clone this object to protect it, since we may change props in the following code
+				if (node.getExplicitHydrogenCount && node.getExplicitHydrogenCount())  // has old explicit hydrogen count, explicitly clear it
+				{
+					mProps.explicitHydrogenCount = null;
+				}
+				if (mProps.inputHydrogenCount && mProps.isotopeId)  // user has input hydrogen count, comparing with implicit HCount, if different, use it as explicit HCount
+				{
+					var newImplicitHCount;
+					var modifyTargetNode = newNode || node;
+					if (modifyTargetNode && modifyTargetNode.getDisableImplicitHydrogenEstimation && modifyTargetNode.getDisableImplicitHydrogenEstimation())
+					{
+						newImplicitHCount = 0;
+					}
+					else
+					{
+						var oldCovalentBondsInfo = (node._getCurrCovalentBondsInfo && node._getCurrCovalentBondsInfo()) || {};
+						var oldIonicBondsInfo = (node._getCurrIonicBondsInfo && node._getCurrIonicBondsInfo()) || {};
+						var atomicSymbol = Kekule.IsotopesDataUtil.getIsotopeIdDetail(mProps.isotopeId).symbol;
+						var atomicNum = Kekule.ChemicalElementsDataUtil.getAtomicNumber(atomicSymbol);
+						var charge = Math.round((node.getCharge && node.getCharge()) || 0);
+						var radicalECount = node.getRadical ? Kekule.RadicalOrder.getRadicalElectronCount(node.getRadical()) : 0;
+						newImplicitHCount = Kekule.ChemStructureUtils.getImplicitHydrogenCount(atomicNum, {
+							'coValenceBondValenceSum': oldCovalentBondsInfo.valenceSum || 0,
+							'otherBondValenceSum': oldIonicBondsInfo.valenceSum || 0,
+							'charge': charge,
+							'radicalECount': radicalECount
+						});
+					}
+					//console.log('impl expl compare', newImplicitHCount, mProps.inputHydrogenCount);
+					if (newImplicitHCount !== mProps.inputHydrogenCount)  // not match, use the inputHydrogenCount as explicit HCount
+					{
+						mProps.explicitHydrogenCount = mProps.inputHydrogenCount;
+						delete mProps.inputHydrogenCount;
+						//console.log('explicit HCount', mProps.inputHydrogenCount, newImplicitHCount);
+					}
+				}
+			}
+			return Kekule.Editor.OperationUtils.createNodeModificationOperation(node, newNode, nodeClass, mProps, editor);
 		}
 	}
 };

@@ -7,7 +7,8 @@
 /*
  * requires /utils/kekule.utils.js
  * requires /core/kekule.common.js
- * requires /kekule.structures.js
+ * requires /core/kekule.valences.js
+ * requires /core/kekule.structures.js
  */
 
 (function () {
@@ -68,6 +69,7 @@ Kekule.ChemStructureUtils = {
 	 */
 	getChildStructureObjs: function(chemObj, cascade)
 	{
+		var isComplex = true;
 		var result;
 		if (chemObj instanceof Kekule.CompositeMolecule)
 			result = chemObj.getSubMolecules().getAllObjs();
@@ -81,19 +83,20 @@ Kekule.ChemStructureUtils = {
 			result = chemObj.getChildren();
 		else
 		{
+			isComplex = false;
 			return [chemObj];
 		}
 		result = [].concat(result);  // clone result, avoid affect properties of chemObj
 
 		// if not returned and cascade, need future check
-		if (cascade)
+		if (cascade && isComplex)
 		{
 			var newResult = [];
 			for (var i = 0, l = result.length; i < l; ++i)
 			{
 				var obj = result[i];
 				var cascadeChilds = Kekule.ChemStructureUtils.getChildStructureObjs(obj, cascade);
-				if (cascadeChilds.length <= 1)  // can not find cascade children
+				if (!cascadeChilds.length || (cascadeChilds.length === 1 && cascadeChilds[0] === obj))  // can not find cascade children
 					Kekule.ArrayUtils.pushUnique(newResult, obj);
 				else  // children find, use them to replace obj
 				{
@@ -460,7 +463,7 @@ Kekule.ChemStructureUtils = {
 		if (l === 0)
 			return 0;
 		else if (l === 1)  // only one connector
-			return -angles[0];
+			return Kekule.GeometryUtils.standardizeAngle(Math.PI + angles[0]);
 		else  // more than two connectors
 		{
 			var max = 0;
@@ -505,6 +508,62 @@ Kekule.ChemStructureUtils = {
 		var result = Kekule.ChemStructureUtils._getMostEmptyDirectionOfExistingAngles(angles);
 		//console.log('angle', result * 180 / Math.PI, Math.cos(result), Math.sin(result));
 		return result;
+	},
+
+	/**
+	 * Check if two rings are the same. Param ring1/ring2 are object wth fields: {nodes, connectors}
+	 * @param {Object} ring1
+	 * @param {Object} ring2
+	 * @returns {Bool}
+	 */
+	isSameRing: function(ring1, ring2)
+	{
+		if (ring1.nodes.length !== ring2.nodes.length)
+			return false;
+		if (ring1.connectors.length !== ring2.connectors.length)
+			return false;
+		if (AU.exclude(ring1.nodes, ring2.nodes).length > 0)
+			return false;
+		if (AU.exclude(ring1.connectors, ring2.connectors).length > 0)
+			return false;
+		return true;
+	},
+
+	/**
+	 * Check if targetRing is in rings.
+	 * @param {Object} targetRing
+	 * @param {Array} rings
+	 * @returns false;
+	 */
+	isInRings: function(targetRing, rings)
+	{
+		for (var i = 0, l = rings.length; i < l; ++i)
+		{
+			var ring = rings[i];
+			if (targetRing === ring)
+				return true;
+			else if (Kekule.ChemStructureUtils.isSameRing(targetRing, ring))
+				return true;
+		}
+		return false;
+	},
+
+	/**
+	 * Guess and returns the implicit hydrogen count connected to an atom.
+	 * @param {Int} atomicNum
+	 * @param {Hash} params Additional params, may including fields {coValenceBondValenceSum, otherBondValenceSum, charge, radicalECount}
+	 *  // Where allowNegative is a special flag, if true, when explicit bond order and hydrogen count too large, a negative value may be returned.
+	 * @returns {Int}
+	 */
+	getImplicitHydrogenCount: function(atomicNum, params)
+	{
+		var p = Object.extend({coValenceBondValenceSum: 0, otherBondValenceSum: 0, charge: 0, radicalECount: 0}, params || {}, true);
+		var valence = Kekule.ValenceUtils.getImplicitValence(atomicNum, p.charge, p.coValenceBondValenceSum);
+		valence -= p.radicalECount;
+		var result = valence - p.coValenceBondValenceSum - p.otherBondValenceSum;
+		if (!p.allowNegative)
+			result = Math.max(valence - p.coValenceBondValenceSum - p.otherBondValenceSum, 0);
+		return result;
 	}
 };
 
@@ -523,9 +582,9 @@ Kekule.TokenAnalyzer = Class.create(ObjectEx,
 	/**
 	 * @constructs
 	 */
-	initialize: function($super, text)
+	initialize: function(/*$super, */text)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this.setSrcText(text);
 	},
 	/** @private */

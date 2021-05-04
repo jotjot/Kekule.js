@@ -16,8 +16,11 @@
 (function(){
 "use strict";
 
+var OU = Kekule.ObjUtils;
 var NT = Kekule.Glyph.NodeType;
 var PT = Kekule.Glyph.PathType;
+
+var EAU = Kekule.Glyph.ElectronArrowGlyphUtils;
 
 /**
  * Heat symbol (a triangle) of reaction equation.
@@ -30,9 +33,9 @@ Kekule.Glyph.HeatSymbol = Class.create(Kekule.Glyph.Polygon,
 	/** @private */
 	CLASS_NAME: 'Kekule.Glyph.HeatSymbol',
 	/** @constructs */
-	initialize: function($super, id, refLength, initialParams, coord2D, coord3D)
+	initialize: function(/*$super, */id, refLength, initialParams, coord2D, coord3D)
 	{
-		$super(id, refLength, initialParams, coord2D, coord3D);
+		this.tryApplySuper('initialize', [id, refLength, initialParams, coord2D, coord3D])  /* $super(id, refLength, initialParams, coord2D, coord3D) */;
 		if (this.setRenderOption)  // avoid error if render module is not loaded
 			this.setRenderOption('strokeWidth', 1.5);
 	},
@@ -42,17 +45,17 @@ Kekule.Glyph.HeatSymbol = Class.create(Kekule.Glyph.Polygon,
 		return 0.25;
 	},
 	/** @private */
-	doCreateDefaultStructure: function($super, refLength, initialParams)
+	doCreateDefaultStructure: function(/*$super, */refLength, initialParams)
 	{
 		initialParams.edgeCount = 3;
 		initialParams.nodeProps = Object.extend(initialParams.nodeProps || {}, {'interactMode': Kekule.ChemObjInteractMode.HIDDEN});
 		initialParams.connectorProps = Object.extend(initialParams.connectorProps || {}, {'interactMode': Kekule.ChemObjInteractMode.HIDDEN});
-		return $super(refLength, initialParams);
+		return this.tryApplySuper('doCreateDefaultStructure', [refLength, initialParams])  /* $super(refLength, initialParams) */;
 	},
 	/** @private */
-	_applyParamsToConnector: function($super, connector, initialParams)
+	_applyParamsToConnector: function(/*$super, */connector, initialParams)
 	{
-		return $super(connector, initialParams);
+		return this.tryApplySuper('_applyParamsToConnector', [connector, initialParams])  /* $super(connector, initialParams) */;
 	}
 });
 
@@ -67,9 +70,9 @@ Kekule.Glyph.AddSymbol = Class.create(Kekule.Glyph.PathGlyph,
 	/** @private */
 	CLASS_NAME: 'Kekule.Glyph.AddSymbol',
 	/** @constructs */
-	initialize: function($super, id, refLength, initialParams, coord2D, coord3D)
+	initialize: function(/*$super, */id, refLength, initialParams, coord2D, coord3D)
 	{
-		$super(id, refLength, initialParams, coord2D, coord3D);
+		this.tryApplySuper('initialize', [id, refLength, initialParams, coord2D, coord3D])  /* $super(id, refLength, initialParams, coord2D, coord3D) */;
 		if (this.setRenderOption)  // avoid error if render module is not loaded
 			this.setRenderOption('strokeWidth', 1.5);
 	},
@@ -215,13 +218,13 @@ Kekule.Glyph.ReactionArrow = Class.create(Kekule.Glyph.StraightLine,
 		});
 	},
 	/** @ignore */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
 		this.setReactionType(Kekule.Glyph.ReactionArrowType.NORMAL);
 	},
 	/** @ignore */
-	doCreateDefaultStructure: function($super, refLength, initialParams)
+	doCreateDefaultStructure: function(/*$super, */refLength, initialParams)
 	{
 		var creationParams = initialParams;
 		var rType = initialParams.reactionType || this.getReactionType();
@@ -230,7 +233,7 @@ Kekule.Glyph.ReactionArrow = Class.create(Kekule.Glyph.StraightLine,
 			var defParams = this._getPathParamOfArrowType(rType);
 			creationParams = Object.extend(defParams, initialParams);
 		}
-		var result = $super(refLength, creationParams);
+		var result = this.tryApplySuper('doCreateDefaultStructure', [refLength, creationParams])  /* $super(refLength, creationParams) */;
 		if (rType)
 			this.setReactionType(rType);
 		return result;
@@ -254,25 +257,17 @@ Kekule.Glyph.ReactionArrow = Class.create(Kekule.Glyph.StraightLine,
 	}
 });
 
-
 ////////////// Set of arc based glyphs //////////////////////
 
 /**
  * Electron pushing arrow (usually connected with two bonds or bond/atom) in reaction.
  * @class
  * @augments Kekule.Glyph.BaseArc
- */
-Kekule.Glyph.Arc = Class.create(Kekule.Glyph.BaseArc,
-/** @lends Kekule.Glyph.Arc# */
-{
-	/** @private */
-	CLASS_NAME: 'Kekule.Glyph.Arc'
-});
-
-/**
- * Electron pushing arrow (usually connected with two bonds or bond/atom) in reaction.
- * @class
- * @augments Kekule.Glyph.BaseArc
+ *
+ * @property {Kekule.ChemStructureObject} Donor The electron donor node or connector.
+ * @property {Kekule.ChemStructureObject} Receptor The electron receptor node or connector.
+ * @property {Kekule.ChemStructureObject} DirectDonor The direct electron donor object (e.g., the lone pair) of donor node/connector.
+ * @property {Kekule.ChemStructureObject} DirectReceptor The direct electron receptor object (e.g., the lone pair) of donor node/connector.
  */
 Kekule.Glyph.ElectronPushingArrow = Class.create(Kekule.Glyph.BaseArc,
 /** @lends Kekule.Glyph.ElectronPushingArrow# */
@@ -289,7 +284,7 @@ Kekule.Glyph.ElectronPushingArrow = Class.create(Kekule.Glyph.BaseArc,
 				var ASide = Kekule.Glyph.ArrowSide;
 				if (arrowSide === ASide.BOTH)
 					return 2;
-				else if ([ASide.SINGLE || ASide.REVERSED].indexOf(arrowSide) >= 0)
+				else if ([ASide.SINGLE, ASide.REVERSED].indexOf(arrowSide) >= 0)
 					return 1;
 				else
 					return null;
@@ -315,11 +310,33 @@ Kekule.Glyph.ElectronPushingArrow = Class.create(Kekule.Glyph.BaseArc,
 				conn.setPathParams(params);
 			}
 		});
-		this.defineProp('receptor', {
+		this.defineProp('directReceptor', {
 			'dataType': 'Kekule.ChemStructureObject',
 			'getter': function() {
 				var node = this.getNodeAt(1);
 				return this._getValidElectronTarget(node);
+			},
+			'setter': function(value) {
+				var node = this.getNodeAt(1);
+				this._setValidElectronTarget(node, value);
+			}
+		});
+		this.defineProp('directDonor', {
+			'dataType': 'Kekule.ChemStructureObject',
+			'getter': function() {
+				var node = this.getNodeAt(0);
+				return this._getValidElectronTarget(node);
+			},
+			'setter': function(value) {
+				var node = this.getNodeAt(0);
+				this._setValidElectronTarget(node, value);
+			}
+		});
+		this.defineProp('receptor', {
+			'dataType': 'Kekule.ChemStructureObject',
+			'getter': function() {
+				var node = this.getNodeAt(1);
+				return this._getValidElectronTargetNodeOrConnector(node);
 			},
 			'setter': function(value) {
 				var node = this.getNodeAt(1);
@@ -330,7 +347,7 @@ Kekule.Glyph.ElectronPushingArrow = Class.create(Kekule.Glyph.BaseArc,
 			'dataType': 'Kekule.ChemStructureObject',
 			'getter': function() {
 				var node = this.getNodeAt(0);
-				return this._getValidElectronTarget(node);
+				return this._getValidElectronTargetNodeOrConnector(node);
 			},
 			'setter': function(value) {
 				var node = this.getNodeAt(0);
@@ -339,31 +356,44 @@ Kekule.Glyph.ElectronPushingArrow = Class.create(Kekule.Glyph.BaseArc,
 		});
 	},
 	/** @ignore */
-	doCreateDefaultStructure: function($super, refLength, initialParams)
+	doCreateDefaultStructure: function(/*$super, */refLength, initialParams)
 	{
-		var result = $super(refLength, initialParams);
+		var result = this.tryApplySuper('doCreateDefaultStructure', [refLength, initialParams])  /* $super(refLength, initialParams) */;
 		if (initialParams.electronCount)
-		{
 			this.setElectronCount(initialParams.electronCount);
-		}
 		return result;
 	},
 	/** @private */
 	_isValidElectronTarget: function(obj)
 	{
-		return (obj instanceof Kekule.ChemStructureNode) || (obj instanceof Kekule.ChemStructureConnector);
+		/*
+		var result = (obj instanceof Kekule.ChemStructureNode) || (obj instanceof Kekule.ChemStructureConnector);
+		if (!result)
+		{
+			var parent = obj.getParent && obj.getParent();
+			if (parent)  // the marker of node/connector (e.g., electron pair) can also be a valid target
+				result = (parent instanceof Kekule.ChemStructureNode) || (parent instanceof Kekule.ChemStructureConnector);
+		}
+		return result;
+		*/
+		return this._isValidChemNodeOrConnectorStickTarget(obj);
 	},
 	/** @private */
 	_getValidElectronTarget: function(glyphNode)
 	{
+		/*
 		var stickTarget = glyphNode && glyphNode.getCoordStickTarget && glyphNode.getCoordStickTarget();
 		if (stickTarget && this._isValidElectronTarget(stickTarget))
 			return stickTarget;
 		else
 			return null;
+		*/
+		return Kekule.Glyph.ElectronArrowGlyphUtils.getValidElectronTarget(glyphNode);
 	},
+	/** @private */
 	_setValidElectronTarget: function(glyphNode, target)
 	{
+		/*
 		if (glyphNode.getAllowCoordStickTo && glyphNode.getAllowCoordStickTo(target))
 		{
 			if (!target)
@@ -371,7 +401,26 @@ Kekule.Glyph.ElectronPushingArrow = Class.create(Kekule.Glyph.BaseArc,
 			else if (this._isValidElectronTarget(target))
 				glyphNode.setCoordStickTarget(target);
 		}
+		*/
+		Kekule.Glyph.ElectronArrowGlyphUtils.setValidElectronTarget(glyphNode, target);
 		return this;
+	},
+	/** @private */
+	_getValidElectronTargetNodeOrConnector: function(glyphNode)
+	{
+		/*
+		var result = null;
+		var target = this._getValidElectronTarget(glyphNode);
+		if (target)
+		{
+			if (target instanceof Kekule.ChemMarker.BaseMarker)
+				result = target.getParent();
+			else
+				result = target;
+		}
+		return result;
+		*/
+		return Kekule.Glyph.ElectronArrowGlyphUtils.getValidElectronTargetNodeOrConnector(glyphNode);
 	},
 	/** @private */
 	_getValidArrowPos: function()
@@ -410,6 +459,141 @@ Kekule.Glyph.ElectronPushingArrow = Class.create(Kekule.Glyph.BaseArc,
 			p.autoOffset = true;
 		connector.setPathParams(p);
 	}
+});
+
+/**
+ * Bond forming electron pushing arrow in reaction.
+ * @class
+ * @augments Kekule.Glyph.BaseTwinArc
+ *
+ * @property {Array} Donors The two electron donor nodes to form the bond.
+ * @property {Array} DirectDonors The direct electron donor objects (e.g., the lone pair) of donor nodes.
+ */
+Kekule.Glyph.BondFormingElectronPushingArrow = Class.create(Kekule.Glyph.BaseTwinArc,
+/** @lends Kekule.Glyph.BondFormingElectronPushingArrow# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.Glyph.BondFormingElectronPushingArrow',
+	/** @private */
+	initProperties: function()
+	{
+		this.defineProp('electronCount', {
+			'dataType': DataType.INT,
+			'getter': function()
+			{
+				var result = null;
+				for (var i = 0, l = this.getConnectorCount(); i < l; ++i)
+				{
+					var count = this._getConnectorElectronCount(this.getConnectorAt(i));
+					if (OU.notUnset(count))
+					{
+						if (OU.isUnset(result))
+							result = count;
+						else if (result !== count)
+							return null;
+					}
+				}
+				return result * this.getConnectorCount();
+			},
+			'setter': function(value) {
+				if (value === this.getElectronCount())
+					return;
+				var perValue = this.getConnectorCount()? value / this.getConnectorCount(): value;
+				perValue = Math.round(perValue);
+				if (perValue <= 0)
+					perValue = 1;
+				var ASide = Kekule.Glyph.ArrowSide;
+				//var arrowPos = this._getValidArrowPos();
+				var connectors = this.getConnectors();
+				var arrowPos;
+				for (var i = 0, l = connectors.length; i < l; ++i)
+				{
+					var conn = connectors[i];
+					//if (!arrowPos)
+					{
+						conn.getPathParams().endArrowType = Kekule.Glyph.ArrowType.OPEN;
+						arrowPos = 'end';
+					}
+					var params = conn.getPathParams();
+					if (perValue >= 2)
+					{
+						params[arrowPos + 'ArrowSide'] = ASide.BOTH;
+					}
+					else if (perValue === 1)
+					{
+						params[arrowPos + 'ArrowSide'] = (i % 2)? ASide.SINGLE: ASide.REVERSED;
+					}
+					conn.setPathParams(params);
+				}
+			}
+		});
+		this.defineProp('directDonors', {
+			'dataType': DataType.ARRAY,
+			'getter': function() {
+				var nodes = this._getArrowStartingNodes();
+				var result = [];
+				for (var i = 0, l = nodes.length; i < l; ++i)
+				{
+					var obj = EAU.getValidElectronTarget(nodes[i]);
+					if (obj)
+						result.push(obj);
+				}
+				return result;
+			},
+			'setter': function(value) {
+				var nodes = this._getArrowStartingNodes();
+				if (nodes.length)
+				{
+					for (var i = 0, l = nodes.length; i < l; ++i)
+					{
+						var node = nodes[i];
+						var obj = value[i];
+						EAU.setValidElectronTarget(node, value);
+					}
+				}
+			}
+		});
+		this.defineProp('donors', {
+			'dataType': DataType.ARRAY,
+			'getter': function() {
+				var nodes = this._getArrowStartingNodes();
+				var result = [];
+				for (var i = 0, l = nodes.length; i < l; ++i)
+				{
+					var obj = EAU.getValidElectronTargetNodeOrConnector(nodes[i]);
+					if (obj)
+						result.push(obj);
+				}
+				return result;
+			},
+			'setter': function(value) {
+				this.setDirectDonors(value);
+			}
+		});
+	},
+	/** @private */
+	_getConnectorElectronCount: function(connector)
+	{
+		var params = connector && connector.getPathParams();
+		if (params)
+		{
+			var ASide = Kekule.Glyph.ArrowSide;
+			var arrowSide = (params.endArrowType)? params.endArrowSide || Kekule.Glyph.ArrowSide.DEFAULT: null;
+			if (arrowSide === ASide.BOTH)
+				return 2;
+			else if ([ASide.SINGLE, ASide.REVERSED].indexOf(arrowSide) >= 0)
+				return 1;
+		}
+		return null;
+	},
+
+	/** @ignore */
+	doCreateDefaultStructure: function(/*$super, */refLength, initialParams)
+	{
+		var result = this.tryApplySuper('doCreateDefaultStructure', [refLength, initialParams])  /* $super(refLength, initialParams) */;
+		this.setElectronCount(initialParams.electronCount || 1);
+		return result;
+	},
 });
 
 })();

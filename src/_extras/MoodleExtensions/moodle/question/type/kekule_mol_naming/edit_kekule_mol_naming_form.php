@@ -45,6 +45,13 @@ class qtype_kekule_mol_naming_edit_form extends qtype_kekule_multianswer_edit_fo
             $question->ignorecase = $ignorecase;
         }
 
+	    if (!isset($question->strictstereoflags)) {
+		    $strictStereoFlags = get_config('mod_qtype_kekule_mol_naming', 'strictstereoflags');
+		    if (!isset($strictStereoFlags))
+			    $strictStereoFlags = qtype_kekule_mol_naming_configs::DEF_STRICT_STEREO_FLAGS;
+		    $question->strictstereoflags = $strictStereoFlags;
+	    }
+
         return parent::data_preprocessing($question);
     }
     protected function data_preprocessing_answers($question, $withanswerfiles = false)
@@ -54,14 +61,17 @@ class qtype_kekule_mol_naming_edit_form extends qtype_kekule_multianswer_edit_fo
 
         $options = array(
             'replaceunstandardchars' => $question->replaceunstandardchars,
-            'removespaces' => $question->removespaces
+            'removespaces' => false,  // $question->removespaces,  // do not remove spaces in standard answer, remaining the original form
+	        'strictstereoflags' => true  // $question->strictStereoFlags  // do not remove bracket around stereo flags in standard answer
         );
-        $answers = $question->options->answers;
-        foreach($answers as $answer)
+	    $answers = $question->options? $question->options->answers: [];
+        if ($answers)
         {
-            $ansText = $answer->answer;
-            $standardizedAns = qtype_kekule_mol_naming_utils::cleanName($ansText, $options);
-            $answer->answer = $standardizedAns;
+	        foreach ($answers as $answer) {
+		        $ansText = $answer->answer;
+		        $standardizedAns = qtype_kekule_mol_naming_utils::cleanName($ansText, $options);
+		        $answer->answer = $standardizedAns;
+	        }
         }
         //var_dump($question->options->answers);
         $result = parent::data_preprocessing_answers($question, $withanswerfiles);
@@ -75,6 +85,8 @@ class qtype_kekule_mol_naming_edit_form extends qtype_kekule_multianswer_edit_fo
             get_string('captionReplaceUnstandardChars', 'qtype_kekule_mol_naming'), '');
         $mform->addElement('advcheckbox', 'removespaces',
             get_string('captionRemoveSpaces', 'qtype_kekule_mol_naming'), '');
+	    $mform->addElement('advcheckbox', 'strictstereoflags',
+		    get_string('captionStrictStereoFlags', 'qtype_kekule_mol_naming'), '');
         $mform->addElement('advcheckbox', 'ignorecase',
             get_string('captionIgnoreCase', 'qtype_kekule_mol_naming'), '');
         /*
@@ -99,9 +111,9 @@ class qtype_kekule_mol_naming_edit_form extends qtype_kekule_multianswer_edit_fo
      * Get concrete form control for answer fields.
      * Descendants should override this method.
      */
-    protected function getAnswerDataFormControls($mform, $label, $gradeoptions)
+    protected function getAnswerDataFormControls($mform, $label, $gradeoptions, $ansIndex)
     {
-        $result = parent::getAnswerDataFormControls($mform, $label, $gradeoptions);
+        $result = parent::getAnswerDataFormControls($mform, $label, $gradeoptions, null);
         /*
         //$result[] = $mform->createElement('hidden', 'answer', '');
         //$result[] = $mform->createElement('text', 'answer', 'Answer', array('size' => 20));

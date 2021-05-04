@@ -46,9 +46,9 @@ Kekule.Widget.AutoLauncher = Class.create(ObjectEx,
 	/** @private */
 	FIELD_PARENT_WIDGET_ELEM: '__$kekule_parent_widget_elem$__',
 	/** @constructs */
-	initialize: function($super)
+	initialize: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this._executingFlag = 0;  // private
 		this._pendingWidgetRefMap = new Kekule.MapEx(true);  // non-weak, to get all keys
 		this._pendingElems = [];  // elements that need to be launched
@@ -78,11 +78,11 @@ Kekule.Widget.AutoLauncher = Class.create(ObjectEx,
 		};
 	},
 	/** @private */
-	finalize: function($super)
+	finalize: function(/*$super*/)
 	{
 		this._pendingElems = null;
 		this._pendingWidgetRefMap = null;
-		$super();
+		this.tryApplySuper('finalize')  /* $super() */;
 	},
 
 	// Methods about lanuchingElems
@@ -475,7 +475,9 @@ Kekule.Widget.AutoLauncher = Class.create(ObjectEx,
 	 */
 	isElemLaunchable: function(elem)
 	{
-		if (elem.isContentEditable && !Kekule.Widget.AutoLauncher.enableOnEditable)
+		if (elem.isContentEditable
+				&& !Kekule.HtmlElementUtils.isFormCtrlElement(elem)  // The isContentEditable property of form control in IE is alway true
+				&& !Kekule.Widget.AutoLauncher.enableOnEditable)
 			return false;
 		else
 			return true;
@@ -579,7 +581,8 @@ var _doAutoLaunch = function()
 
 	if (!Kekule._isLoaded())  // the whole library is not completely loaded yet, may be some widget class unavailable, waiting
 	{
-		Kekule._registerAfterLoadSysProc(_doAutoLaunch);
+		//Kekule._registerAfterLoadSysProc(_doAutoLaunch);
+		Kekule._ready(_doAutoLaunch);  // ensure _doAutoLaunch called after all system calls
 		return;
 	}
 

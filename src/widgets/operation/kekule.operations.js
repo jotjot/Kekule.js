@@ -23,9 +23,9 @@ Kekule.Operation = Class.create(ObjectEx,
 	/** @private */
 	CLASS_NAME: 'Kekule.Operation',
 	/** @constructs */
-	initialize: function($super)
+	initialize: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		//this.setPropStoreFieldValue('state', Kekule.Operation.State.UNEXECUTED);
 	},
 	/** @private */
@@ -128,9 +128,9 @@ Kekule.MacroOperation = Class.create(Kekule.Operation,
 	/** @private */
 	CLASS_NAME: 'Kekule.MacroOperation',
 	/** @constructs */
-	initialize: function($super, childOperations)
+	initialize: function(/*$super, */childOperations)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this.setChildren(childOperations || []);
 	},
 	/** @private */
@@ -259,9 +259,9 @@ Kekule.OperationHistory = Class.create(ObjectEx,
 	/** @private */
 	CLASS_NAME: 'Kekule.OperationHistory',
 	/** @constructs */
-	initialize: function($super, capacity)
+	initialize: function(/*$super, */capacity)
 	{
-		$super();
+		this.tryApplySuper('initialize')  /* $super() */;
 		this.setCapacity(capacity || null);
 	},
 	/** @private */
@@ -423,6 +423,26 @@ Kekule.OperationHistory = Class.create(ObjectEx,
 		var index = this.getCurrIndex();
 		return (index < this.getOperations().length - 1);
 	},
+
+	/**
+	 * Replace an operation in history.
+	 * @param {Kekule.Operation} oldOperation
+	 * @param {Kekule.Operation} newOperation
+	 * @returns {Kekule.Operation} The replaced old operation object.
+	 */
+	replaceOperation: function(oldOperation, newOperation)
+	{
+		var opers = this.getOperations();
+		var index = opers.lastIndexOf(oldOperation);
+		if (index >= 0)
+		{
+			console.log('replace operation', index === opers.length - 1);
+			return opers.splice(index, 1, newOperation);
+		}
+		else
+			return null;
+	},
+
 	/**
 	 * Undo current operation.
 	 * @returns {Kekule.Operation} Operation undone.

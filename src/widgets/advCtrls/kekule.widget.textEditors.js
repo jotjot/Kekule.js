@@ -41,7 +41,9 @@ Kekule.Widget.HtmlClassNames = Object.extend(Kekule.Widget.HtmlClassNames, {
  *
  * @property {String} text Text in editor.
  * @property {Bool} readOnly
- * @property {String} wrap Wrap mode of textarea in editor, value between "virtual", "physical" and "off".
+ * @property {String} wrap Wrap mode of textarea in editor, value between "soft", "hard" and "off".
+ * @property {Int} autoWrapThreshold If this value is set, when the (total text length) / (text lines) > threshold, the wrap property will be automatically changed to 'soft' and 'off' vice versa.
+ *   Value true can also be set to this property to turn on this feature with the default threshold value.
  * @property {Bool} showToolbar Whether show toolbar in editor.
  * @property {Array} toolbarComponents Shown widgets in toolbar.
  * @property {Array} candidateFontFamilies Array of font names that may be shown in font family combo box in toolbar.
@@ -61,12 +63,14 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 	BINDABLE_TAG_NAMES: ['div', 'span'],
 	/** @private */
 	DEF_TOOLBAR_COMPONENTS: ['fontFamily', 'fontSizeInc', 'fontSizeDec', 'textWrap'],
+	/** @ignore */
+	DEF_AUTOWRAP_THRESHOLD: 80,
 	/** @constructs */
-	initialize: function($super, parentOrElementOrDocument)
+	initialize: function(/*$super, */parentOrElementOrDocument)
 	{
 		this._toolCompWidgets = [];
 		this.setPropStoreFieldValue('showToolbar', true);
-		$super(parentOrElementOrDocument);
+		this.tryApplySuper('initialize', [parentOrElementOrDocument])  /* $super(parentOrElementOrDocument) */;
 	},
 	/** @private */
 	initProperties: function()
@@ -83,6 +87,7 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 				if (textArea)
 				{
 					textArea.setText(value);
+					this._checkAutoWrap();
 				}
 			}
 		});
@@ -97,6 +102,14 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 				var result = this.getTextArea().setWrap(value);
 				this.updateToolButtonStates();
 				return result;
+			}
+		});
+		this.defineProp('autoWrapThreshold', {'dataType': DataType.INT,
+			'setter': function(value)
+			{
+				var v = (value === true)? this.DEF_AUTOWRAP_THRESHOLD: value;
+				this.setPropStoreFieldValue('autoWrapThreshold', v);
+				this._checkAutoWrap();
 			}
 		});
 		// private
@@ -171,11 +184,13 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 			}
 		});
 	},
-	finalize: function($super)
+	/** @ignore */
+	finalize: function(/*$super*/)
 	{
 		this._finalizeSubElements();
-		$super();
+		this.tryApplySuper('finalize')  /* $super() */;
 	},
+	/** @private */
 	_finalizeSubElements: function()
 	{
 		var textArea = this.getTextArea();
@@ -184,25 +199,32 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 			textArea.finalize();
 		}
 	},
-	/* @ignore */
-	getCoreElement: function($super)
+	/** @ignore */
+	getCoreElement: function(/*$super*/)
 	{
 		var textArea = this.getTextArea();
 		if (textArea)
 			return textArea.getElement();
 		else
-			return $super();
+			return this.tryApplySuper('getCoreElement')  /* $super() */;
 	},
 	/** @ignore */
-	getChildrenHolderElement: function($super)
+	getChildrenHolderElement: function(/*$super*/)
 	{
 		return this.getElement();
 	},
 
 	/** @ignore */
-	doGetWidgetClassName: function($super)
+	doSetValue: function(/*$super, */value)
 	{
-		return $super() + ' ' + CNS.TEXTEDITOR;
+		this.tryApplySuper('doSetValue', [value])  /* $super(value) */;
+		this._checkAutoWrap();
+	},
+
+	/** @ignore */
+	doGetWidgetClassName: function(/*$super*/)
+	{
+		return this.tryApplySuper('doGetWidgetClassName')  /* $super() */ + ' ' + CNS.TEXTEDITOR;
 	},
 	/** @ignore */
 	doCreateRootElement: function(doc)
@@ -224,9 +246,9 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 		return [toolbar.getElement(), textArea.getElement()];
 	},
 	/** @ignore */
-	doWidgetShowStateChanged: function($super, isShown)
+	doWidgetShowStateChanged: function(/*$super, */isShown)
 	{
-		$super(isShown);
+		this.tryApplySuper('doWidgetShowStateChanged', [isShown])  /* $super(isShown) */;
 		if (isShown)
 		{
 			this.updateChildWidgetPos();
@@ -235,10 +257,10 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 	},
 
 	/** @ignore */
-	doFileDragDrop: function($super, files)
+	doFileDragDrop: function(/*$super, */files)
 	{
 		if (!files /* || files.length > 1 */)
-			return $super();
+			return this.tryApplySuper('doFileDragDrop')  /* $super() */;
 		else  // if only one file is dropped in, output the file content
 		{
 			if (Kekule.BrowserFeature.fileapi)
@@ -336,7 +358,7 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 			result.setChecked(this.getWrap() !== 'off');
 			result.addEventListener('checkChange', function(e){
 				var wrap = result.getChecked();
-				this.setWrap(wrap? 'virtual': 'off');
+				this.setWrap(wrap? 'soft': 'off');
 			}, this);
 		}
 		else if (btnName === 'fontSizeInc')
@@ -365,12 +387,25 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 		result.appendToWidget(toolbar);
 		return result;
 	},
+
+	/**
+	 * Returns child widget in toolbar by component name.
+	 * @param {String} compName
+	 * @returns {Kekule.Widget.BaseWidget}
+	 */
+	getToolbarComponentWidget: function(compName)
+	{
+		return this._toolCompWidgets[compName];
+	},
+
 	/** @private */
 	createTextArea: function()
 	{
 		var result = new Kekule.Widget.TextArea(this);
 		this.setPropStoreFieldValue('textArea', result);
 		result.addClassName(CNS.TEXTEDITOR_TEXTAREA);
+		result.addEventListener('valueChange', this._checkAutoWrap, this);
+		result.addEventListener('valueInput', this._checkAutoWrap, this);
 		return result;
 	},
 	/** @private */
@@ -445,6 +480,30 @@ Kekule.Widget.TextEditor = Class.create(Kekule.Widget.FormWidget,
 		var level = this.getFontSizeLevel() || 1;
 		var newLevel = Kekule.ZoomUtils.getNextZoomOutRatio(level);
 		this.setFontSizeLevel(newLevel);
+	},
+
+	/** @private */
+	_checkAutoWrap: function()
+	{
+		var autoWrapThreshold = this.getAutoWrapThreshold();
+		if (autoWrapThreshold)
+		{
+			var newWrap;
+			var btnWrap = this.getToolbarComponentWidget('textWrap');
+			var currWrap = (this.getWrap() || '').toLowerCase();
+			var text = this.getValue() || '';
+			var lineCount = text.split('\n').length;
+			var ratio = text.length / lineCount;
+			btnWrap.setChecked(ratio > autoWrapThreshold);
+			/*
+			if (ratio > autoWrapThreshold)
+				newWrap = (currWrap === 'off')? 'soft': null;
+			else
+				newWrap = (currWrap === 'soft')? 'off': null;
+			if (newWrap)
+				this.setWrap(newWrap);
+			*/
+		}
 	}
 });
 

@@ -44,6 +44,36 @@ Kekule.ChemWidget.HtmlClassNames = Object.extend(Kekule.ChemWidget.HtmlClassName
 	CHEMEDITOR_FORMULA_SETTER: 'K-ChemEditor-Formula-Setter'
 });
 
+Kekule.globalOptions.add('chemWidget.editor', {
+	'enableSelect': true,
+	'enableFileDrop': true,
+	'allowCreateNewChild': true,
+	'autoCreateNewStructFragment': true,
+	'allowAppendDataToCurr': true,
+	'enableGesture': true,
+	'initOnNewDoc': true
+});
+Kekule.globalOptions.add('chemWidget.editor.molManipulation', {
+	/*
+	'enableMagneticMerge': true,
+	'enableNodeMerge': true,
+	'enableNeighborNodeMerge': true,
+	'enableConnectorMerge': true,
+	'enableStructFragmentMerge': true,
+	*/
+	'enableNodeStick': true,
+	'enableStructFragmentStick': true,
+	'enableConstrainedMove': true,
+	'enableConstrainedRotate': true,
+	'enableConstrainedResize': true,
+	'enableDirectedMove': true
+});
+Kekule.globalOptions.add('chemWidget.editor.bondManipulation', {
+	'enableBondModification': true,
+	'allowBondingToBond': false,
+	'autoSwitchBondOrder': false
+});
+
 /**
  * A chem editor to edit chemspace object and other chem objects.
  * When load a chem object other than instance of Kekule.ChemSpace, an empty ChemSpace instance will
@@ -70,12 +100,18 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.ChemSpaceEditor',
 	/** @constructs */
-	initialize: function($super, parentOrElementOrDocument, chemObj, renderType, editorConfigs)
+	initialize: function(/*$super, */parentOrElementOrDocument, chemObj, renderType, editorConfigs)
 	{
+		/*
 		this.setPropStoreFieldValue('allowCreateNewChild', true);
 		this.setPropStoreFieldValue('autoCreateNewStructFragment', true);
 		this.setPropStoreFieldValue('allowAppendDataToCurr', true);
-		$super(parentOrElementOrDocument, chemObj, renderType, editorConfigs);
+		*/
+		var getOptionValue = Kekule.globalOptions.get;
+		this.setPropStoreFieldValue('allowCreateNewChild', getOptionValue('chemWidget.editor.allowCreateNewChild', true));
+		this.setPropStoreFieldValue('autoCreateNewStructFragment', getOptionValue('chemWidget.editor.autoCreateNewStructFragment', true));
+		this.setPropStoreFieldValue('allowAppendDataToCurr', getOptionValue('chemWidget.editor.autoCreateNewStructFragment', true));
+		this.tryApplySuper('initialize', [parentOrElementOrDocument, chemObj, renderType, editorConfigs])  /* $super(parentOrElementOrDocument, chemObj, renderType, editorConfigs) */;
 		this._containerChemSpace = null;  // private field, used to mark that a extra chem space container is used
 
 	},
@@ -96,10 +132,11 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 		this.defineProp('allowAppendDataToCurr', {'dataType': DataType.BOOL});
 	},
 	/** @ignore */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
-		this.setFileDroppable(true);  // defaultly turn on file drop function
+		this.tryApplySuper('initPropValues')  /* $super() */;
+		//this.setFileDroppable(true);  // defaultly turn on file drop function
+		this.setFileDroppable(Kekule.globalOptions.get('chemWidget.editor.enableFileDrop', true));
 	},
 
 	/**
@@ -114,9 +151,9 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 	},
 
 	/** @ignore */
-	getActualDrawOptions: function($super)
+	getActualDrawOptions: function(/*$super*/)
 	{
-		var result = $super();
+		var result = this.tryApplySuper('getActualDrawOptions')  /* $super() */;
 		// a special field to ensure use explict size of space
 		// rather than calc size based on child objects
 		result.useExplicitSpaceSize = true;
@@ -124,7 +161,7 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 	},
 
 	/** @private */
-	doSetChemObj: function($super, value)
+	doSetChemObj: function(/*$super, */value)
 	{
 		var old = this.getChemObj();
 		if (old !== value)
@@ -134,20 +171,13 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 				old.finalize();
 				this._containerChemSpace = null;
 			}
+
 			if (value)
 			{
 				if (value instanceof Kekule.ChemSpace)
 				{
 					this._initChemSpaceDefProps(value);
-					var result = $super(value);
-					// auto scroll
-					if (this.getEditorConfigs().getInteractionConfigs().getScrollToObjAfterLoading())
-					{
-						var objs = value.getChildren();
-						if (objs && objs.length)
-							this.scrollClientToObject(objs);
-					}
-					return result;
+					this.tryApplySuper('doSetChemObj', [value])  /* $super(value) */;
 				}
 				else
 				{
@@ -155,41 +185,67 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 					//this._initChemSpaceDefProps(space, value);
 					//space.appendChild(value);
 					this._containerChemSpace = space;
-					$super(space);
+					this.tryApplySuper('doSetChemObj', [space])  /* $super(space) */;
+				}
+				if (this.getEditorConfigs().getInteractionConfigs().getAutoExpandClientSizeAfterLoading())
+				{
+					this.autoExpandChemSpaceSize();
+				}
+
+				if (value instanceof Kekule.ChemSpace)
+				{
+					// auto scroll
+					if (this.getEditorConfigs().getInteractionConfigs().getScrollToObjAfterLoading())
+					{
+						var objs = value.getChildren();
+						if (objs && objs.length)
+							this.scrollClientToObject(objs);
+					}
 				}
 			}
 			else
-				$super(value);
+				this.tryApplySuper('doSetChemObj', [value])  /* $super(value) */;
 		}
 		else
-			$super(value);
+			this.tryApplySuper('doSetChemObj', [value])  /* $super(value) */;
 	},
 
 	/** @ignore */
-	getExportableClasses: function($super)
+	getExportableClasses: function(/*$super*/)
 	{
-		var result = $super();  // now result includes chemSpace
+		var result = this.tryApplySuper('getExportableClasses')  /* $super() */;  // now result includes chemSpace
 		// add child objects of chemspace to result
 		var space = this.getChemSpace();
 		if (space)
 		{
+			/*
 			for (var i = 0, l = space.getChildCount(); i < l; ++i)
 			{
 				var obj = space.getChildAt(i);
 				if (obj && obj.getClass)
 					Kekule.ArrayUtils.pushUnique(result, obj.getClass());
 			}
+			*/
+			var iteratorFunc = function(child){
+				if (child.isStandalone && child.isStandalone() && child.getClass)
+				{
+					var oClass = child.getClass();
+					Kekule.ArrayUtils.pushUnique(result, oClass);
+				}
+			};
+			space.iterateChildren(iteratorFunc, true);
 		}
 		return result;
 	},
 	/** @ignore */
-	exportObjs: function($super, objClass)
+	exportObjs: function(/*$super, */objClass)
 	{
-		var result = $super(objClass);
+		var result = this.tryApplySuper('exportObjs', [objClass])  /* $super(objClass) */;
 		if ((!result || !result.length) && objClass)  // check child objects of chemSpace
 		{
 			result = [];
 			var space = this.getChemSpace();
+			/*
 			if (space)
 			{
 				for (var i = 0, l = space.getChildCount(); i < l; ++i)
@@ -199,11 +255,14 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 						result.push(obj);
 				}
 			}
+			*/
+			var filter = function(child){ return child && (child instanceof objClass); };
+			result = space.filterChildren(filter, true);
 		}
 		return result;
 	},
 	/** @ignore */
-	getSavingTargetObj: function($super)
+	getSavingTargetObj: function(/*$super*/)
 	{
 		// if only one child in chemspace, save this obj alone (rather than the space).
 		var space = this.getChemSpace();
@@ -213,7 +272,7 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 			return space.getChildAt(0);
 		}
 		else
-			return $super();
+			return this.tryApplySuper('getSavingTargetObj')  /* $super() */;
 	},
 
 	/** @ignore */
@@ -230,16 +289,16 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 	},
 
 	/** @private */
-	doLoad: function($super, chemObj)
+	doLoad: function(/*$super, */chemObj)
 	{
 		// supply essential charge and radical markers
 		this._supplyChemMarkersOnObj(chemObj);
-		$super(chemObj);
+		this.tryApplySuper('doLoad', [chemObj])  /* $super(chemObj) */;
 	},
 	/** @private */
-	doLoadEnd: function($super, chemObj)
+	doLoadEnd: function(/*$super, */chemObj)
 	{
-		var result = $super(chemObj);
+		var result = this.tryApplySuper('doLoadEnd', [chemObj])  /* $super(chemObj) */;
 		// calc def bond length
 		var defBondLength = null;
 		if (chemObj)
@@ -257,33 +316,67 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 		return result;
 	},
 	/** @ignore */
-	resetDisplay: function($super)
+	resetDisplay: function(/*$super*/)
 	{
 		// called after loading a new chemObj, or creating a new doc
-		$super();
+		this.tryApplySuper('resetDisplay')  /* $super() */;
 		this.resetClientDisplay();
 	},
+	/**
+	 * Reset the transform params of context and repaint the client.
+	 * @private
+	 */
+	resetClientDisplay: function(restoreScrollPosition)
+	{
+		// run rest later after updating object in editor, to ensure the context is really updated (even in begin/endUpdateObject block, e.g., in undo change space size operation)
+		// IMPORTANT: if not called in a defer way, the resetClientDisplay may be run before endUpdateObject. In reset process, the
+		// object is actually not updated in draw context (e.g., the box of text block is still the old one and returns a old container box),
+		// then the _initialTransformParams are recalculated in resetClientDisplay but got a wrong result.
+		// So, here we must ensure the resetClientDisplay run after endUpdateObject.
+		if (this.isUpdatingObject())  // suspend the reset process after updating is done
+		{
+			var self = this;
+			/*
+			this.once('endUpdateObject', function(e){
+				if (e.target === self)
+					self._resetClientDisplayCore(restoreScrollPosition);
+			});
+			*/
+			this._registerAfterUpdateObjectProc(function(){
+				self._resetClientDisplayCore(restoreScrollPosition);
+			});
+		}
+		else
+			return this._resetClientDisplayCore(restoreScrollPosition);
+	},
 	/** @private */
-	resetClientDisplay: function()
+	_resetClientDisplayCore: function(restoreScrollPosition)
 	{
 		// adjust editor size
 		var space = this.getChemObj();
 		if (space)
 		{
-			//console.log('decide size', space, space.getScreenSize);
+			var scrollPos;
+			if (restoreScrollPosition)
+				scrollPos = this.getClientScrollPosition();
+
+			//console.log('decide size', space.getScreenSize());
 			var screenSize = space.getScreenSize();
 			this.changeClientSize(screenSize.x, screenSize.y, this.getCurrZoom());
 			// scroll to top center
 			var elem = this.getEditClientElem().parentNode;
 			var visibleClientSize = Kekule.HtmlElementUtils.getElemClientDimension(elem);
-			this.scrollClientTo(0, (screenSize.x * this.getCurrZoom() - visibleClientSize.width) / 2);
+			if (!restoreScrollPosition)
+				this.scrollClientTo(0, (screenSize.x * this.getCurrZoom() - visibleClientSize.width) / 2);
+			else
+				this.scrollClientTo(scrollPos.y, scrollPos.x);
 		}
 	},
 
 	/** @ignore */
-	zoomChanged: function($super, zoomLevel)
+	zoomChanged: function(/*$super, */zoomLevel)
 	{
-		$super();
+		this.tryApplySuper('zoomChanged')  /* $super() */;
 		var space = this.getChemObj();
 		if (space)
 		{
@@ -293,9 +386,9 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 	},
 
 	/** @ignore */
-	createNewBoundInfoRecorder: function($super, renderer)
+	createNewBoundInfoRecorder: function(/*$super, */renderer)
 	{
-		$super(renderer);
+		this.tryApplySuper('createNewBoundInfoRecorder', [renderer])  /* $super(renderer) */;
 		var recorder = this.getBoundInfoRecorder();
 		if (recorder)  // add event listener to update text box size
 		{
@@ -314,7 +407,7 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 		}
 	},
 	/* @ignore */
-	objectChanged: function($super, obj, changedPropNames)
+	objectChanged: function(/*$super, */obj, changedPropNames)
 	{
 		/*
 		if (this.getCoordMode() === Kekule.CoordMode.COORD2D)  // only works in 2D mode
@@ -328,8 +421,69 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 			}
 		}
 		*/
-		return $super(obj, changedPropNames);
+		var result = this.tryApplySuper('objectChanged', [obj, changedPropNames])  /* $super(obj, changedPropNames) */;
+		//this.autoExpandChemSpaceSize();
+		return result;
 	},
+
+	/** @ignore */
+	doManipulationEnd: function(/*$super*/)
+	{
+		if (this.getEditorConfigs().getInteractionConfigs().getAutoExpandClientSizeAfterManipulation())
+		{
+			//this.autoExpandChemSpaceSize();
+			var autoExpandInfo = this._calcChemSpaceAutoExpandInfo();
+			if (autoExpandInfo)  // need to expand
+			{
+				var opers = this._createChemSpaceAutoExpandOperations(autoExpandInfo);
+				if (opers)
+				{
+					if (this.getEnableOperHistory())
+					{
+						//console.log('append resize oper', opers);
+						this._appendOpersToLastManipulationOperation(opers);
+					}
+					for (var i = 0, l = opers.length; i < l; ++i)
+					{
+						opers[i].execute();  // execute but not push to history
+					}
+				}
+			}
+		}
+		return this.tryApplySuper('doManipulationEnd')  /* $super() */;
+	},
+	/** @private */
+	_appendOpersToLastManipulationOperation: function(opers)
+	{
+		var currManipulationOpers = this.getOperationsInCurrManipulation();
+		if (currManipulationOpers && currManipulationOpers.length)
+		{
+			var lastOper = currManipulationOpers[currManipulationOpers.length - 1];
+			var operHistory = this.getOperHistory();
+			if (operHistory)
+			{
+				var historyOperations = operHistory.getOperations();   // TODO: here we use the internal array structure of OperationHistory, may change in the future
+				var historyIndex = historyOperations.indexOf(lastOper);
+				if (historyIndex >= 0)  // replace oper in history
+				{
+					var macroOperation;
+					if (lastOper instanceof Kekule.MacroOperation)
+						macroOperation = lastOper;
+					else
+					{
+						macroOperation = new Kekule.MacroOperation([lastOper]);
+						historyOperations.splice(historyIndex, 1, macroOperation);
+						currManipulationOpers.splice(currManipulationOpers.length - 1, 1, macroOperation);
+					}
+					for (var i = 0, l = opers.length; i < l; ++i)
+					{
+						macroOperation.add(opers[i]);
+					}
+				}
+			}
+		}
+	},
+
 	/** @private */
 	updateTextBlockSize: function(textBlock, boundInfo)
 	{
@@ -495,6 +649,19 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 			chemSpace.setIsEditing(true);
 	},
 
+	/** @private */
+	_getChemSpaceObjScreenLengthRatio: function()
+	{
+		var chemSpace = this.getChemSpace();
+		var ratio = chemSpace.getObjScreenLengthRatio();
+		if (!ratio)
+		{
+			var refScreenLength = this.getRenderConfigs().getLengthConfigs().getDefBondLength();
+			ratio = chemSpace.getDefAutoScaleRefLength() / refScreenLength;
+		}
+		return ratio;
+	},
+
 	/**
 	 * Change the size of current chemspace.
 	 * The screen size of the space will also be modified in 2D coord mode.
@@ -504,23 +671,35 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 	changeChemSpaceSize: function(size, coordMode)
 	{
 		var chemSpace = this.getChemSpace();
-		chemSpace.setSizeOfMode(size, coordMode);
-
-		// now only change screen size in 2D mode
-		if (coordMode === Kekule.CoordMode.COORD2D)
+		chemSpace.beginUpdate();
+		try
 		{
-			var ratio = chemSpace.getObjScreenLengthRatio();
-			if (!ratio)
+			chemSpace.setSizeOfMode(size, coordMode);
+
+			// now only change screen size in 2D mode
+			if (coordMode === Kekule.CoordMode.COORD2D)
 			{
-				var refScreenLength = this.getRenderConfigs().getLengthConfigs().getDefBondLength();
-				ratio = chemSpace.getDefAutoScaleRefLength() / refScreenLength;
-			}
-			if (ratio)
-			{
-				chemSpace.setScreenSize({'x': size.x / ratio, 'y': size.y / ratio});
+				/*
+				var ratio = chemSpace.getObjScreenLengthRatio();
+				if (!ratio)
+				{
+					var refScreenLength = this.getRenderConfigs().getLengthConfigs().getDefBondLength();
+					ratio = chemSpace.getDefAutoScaleRefLength() / refScreenLength;
+				}
+				*/
+				var ratio = this._getChemSpaceObjScreenLengthRatio();
+				if (ratio)
+				{
+					chemSpace.setScreenSize({'x': size.x / ratio, 'y': size.y / ratio});
+				}
 			}
 		}
-		this.resetClientDisplay();
+		finally
+		{
+			chemSpace.endUpdate();
+		}
+
+		this.resetClientDisplay(true);
 	},
 	/**
 	 * Change the screen size of current chem space in editor.
@@ -530,19 +709,270 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 	changeChemSpaceScreenSize: function(screenSize)
 	{
 		var chemSpace = this.getChemSpace();
-		var ratio = chemSpace.getObjScreenLengthRatio();
-		if (!ratio)
+		chemSpace.beginUpdate();
+		try
 		{
-			var refScreenLength = this.getRenderConfigs().getLengthConfigs().getDefBondLength();
-			ratio = chemSpace.getDefAutoScaleRefLength() / refScreenLength;
+			/*
+			var ratio = chemSpace.getObjScreenLengthRatio();
+			if (!ratio)
+			{
+				var refScreenLength = this.getRenderConfigs().getLengthConfigs().getDefBondLength();
+				ratio = chemSpace.getDefAutoScaleRefLength() / refScreenLength;
+			}
+			*/
+			var ratio = this._getChemSpaceObjScreenLengthRatio();
+			if (ratio)
+			{
+				// change size 2D
+				chemSpace.setSize2D({'x': screenSize.x * ratio, 'y': screenSize.y * ratio});
+			}
+			chemSpace.setScreenSize(screenSize);
 		}
-		if (ratio)
+		finally
 		{
-			// change size 2D
-			chemSpace.setSize2D({'x': screenSize.x * ratio, 'y': screenSize.y * ratio});
+			chemSpace.endUpdate();
 		}
-		chemSpace.setScreenSize(screenSize);
-		this.resetClientDisplay();
+		this.resetClientDisplay(true);
+	},
+
+	/**
+	 * Shift coords of all direct children of chem space.
+	 * @private
+	 */
+	_shiftChemSpaceChildCoord: function(coordDelta, coordMode, scrollToNewPosition)
+	{
+		var chemSpace = this.getChemSpace();
+		var children = chemSpace.getChildren();
+		if (children)
+		{
+			var scrollCoord;
+			if (scrollToNewPosition)
+			{
+				scrollCoord = this.getClientScrollCoord(Kekule.Editor.CoordSys.CHEM);
+				//scrollCoord = CU.multiply(scrollCoord, -1);
+			}
+
+			this.beginUpdateObject();
+			try
+			{
+				chemSpace.beginUpdate();
+				try
+				{
+					var allowCoordBorrow = this.getAllowCoordBorrow();
+					for (var i = 0, l = children.length; i < l; ++i)
+					{
+						var child = children[i];
+						if (child && child.setCoordOfMode)
+						{
+							var oldCoord = child.getCoordOfMode(coordMode, allowCoordBorrow) || {};
+							child.setCoordOfMode(CU.add(oldCoord, coordDelta));
+						}
+						/*
+						if (coordDelta2D && child && child.setCoord2D)
+							child.setCoord2D(CU.add(child.getCoord2D(), coordDelta2D));
+						if (coordDelta3D && child && child.setCoord3D)
+							child.setCoord3D(CU.add(child.getCoord3D(), coordDelta3D));
+						*/
+					}
+					if (scrollToNewPosition)
+					{
+						//console.log('scrollToNewPosition', scrollCoord);
+						this.scrollClientToCoord(scrollCoord, Kekule.Editor.CoordSys.CHEM);
+					}
+				}
+				finally
+				{
+					chemSpace.endUpdate();
+				}
+			}
+			finally
+			{
+				this.endUpdateObject();
+			}
+		}
+	},
+	/** @private */
+	_calcExpandChemSpaceSizeToTargetObjsInfo: function(targetObjs, coordMode)
+	{
+		if (targetObjs && targetObjs.length)
+		{
+			var containerBoxInfo = this._getTargetObjsExposedContainerBoxInfo(targetObjs);
+			var totalContainerBox = containerBoxInfo.totalBox;
+			if (totalContainerBox)
+				return this._calcExpandChemSpaceSizeToContainerBoxInfo(totalContainerBox, coordMode);
+		}
+		return null;
+	},
+	/** @private */
+	_calcExpandChemSpaceSizeToContainerBoxInfo: function(containerBox, coordMode)
+	{
+		var CM = Kekule.CoordMode;
+		var space = this.getChemSpace();
+		var is3D = (coordMode === CM.COORD3D);
+		var coordFields = ['x', 'y'];
+		if (is3D)
+			coordFields.push('z');
+
+		var chemSpaceConfigs = this.getEditorConfigs().getChemSpaceConfigs();
+		var ObjScreenLengthRatio = this._getChemSpaceObjScreenLengthRatio();
+		var screenPadding = chemSpaceConfigs.getDefPadding();
+		var objSysPadding = screenPadding * ObjScreenLengthRatio;
+
+		var currSize = is3D? space.getSize3D(): space.getSize2D();
+		var minMaxCoords = Kekule.BoxUtils.getMinMaxCoords(containerBox);
+		// check minCoord, if coord less than zero + padding, need to expand
+		var minCoord = minMaxCoords.min;
+		var minShift = {};
+		var needMinShift = false;
+		for (var i = 0, l = coordFields.length; i < l; ++i)
+		{
+			var coordValue = minCoord[coordFields[i]];
+			if (coordValue < objSysPadding)
+			{
+				minShift[coordFields[i]] = objSysPadding - coordValue;
+				needMinShift = true;
+			}
+			else
+				minShift[coordFields[i]] = 0;
+		}
+		// check maxCoord, if coord greater than size - padding, need to expand
+		var maxCoord = minMaxCoords.max;
+		var maxDelta = {};
+		var needMaxExpand = false;
+		for (var i = 0, l = coordFields.length; i < l; ++i)
+		{
+			var coordValue = maxCoord[coordFields[i]];
+			if (coordValue > currSize[coordFields[i]] - objSysPadding)
+			{
+				maxDelta[coordFields[i]] = coordValue - (currSize[coordFields[i]] - objSysPadding);
+				needMaxExpand = true;
+			}
+			else
+				maxDelta[coordFields[i]] = 0;
+		}
+
+		// prepare to expand
+		var expands = {};
+		var actualExpands = {};
+		if (needMinShift || needMaxExpand)
+		{
+			//console.log('do expand', needMinShift, minShift, needMaxExpand, maxDelta);
+			var autoExpandScreenSize = is3D? chemSpaceConfigs.getAutoExpandScreenSize2D(): chemSpaceConfigs.getAutoExpandScreenSize3D();
+			var autoExpandSize = CU.multiply(autoExpandScreenSize, ObjScreenLengthRatio);
+			for (var i = 0, l = coordFields.length; i < l; ++i)
+			{
+				var field = coordFields[i];
+				expands[field] = minShift[field] + maxDelta[field];
+				var scale = Math.ceil(expands[field] / autoExpandSize[field]);
+				actualExpands[field] = scale * autoExpandSize[field];
+			}
+			// do expand and shift
+			var newSize = CU.add(currSize, actualExpands);
+			var result = {'newSize': newSize};
+			if (needMinShift)
+				result.coordShift = minShift;
+			return result;
+		}
+		else
+			return null;
+	},
+	/** @private */
+	_expandChemSpaceSizeAndShiftChildrenCoords: function(newSize, coordShift, coordMode)
+	{
+		this.beginUpdateObject();
+		try
+		{
+			if (coordShift)
+				this._shiftChemSpaceChildCoord(coordShift, coordMode, true);
+			this.changeChemSpaceSize(newSize, coordMode);
+		}
+		finally
+		{
+			this.endUpdateObject();
+		}
+	},
+	/** @private */
+	_expandChemSpaceSizeToContainerBox: function(containerBox, coordMode)
+	{
+		var detail = this._calcExpandChemSpaceSizeToContainerBoxInfo(containerBox, coordMode);
+		if (detail)
+		{
+			this._expandChemSpaceSizeAndShiftChildrenCoords(detail.newSize, detail.coordShift, coordMode);
+		}
+		return detail;
+	},
+
+	/**
+	 * Change the size of current chemspace, automatically expand it to display all targetObjs.
+	 * @param {Array} targetObjs
+	 * @param {Int} coordMode
+	 */
+	expandChemSpaceSizeToTargetObjs: function(targetObjs, coordMode)
+	{
+		if (Kekule.ObjUtils.isUnset(coordMode))
+			coordMode = this.getCoordMode();
+		if (targetObjs && targetObjs.length)
+		{
+			var containerBoxInfo = this._getTargetObjsExposedContainerBoxInfo(targetObjs);
+			var totalContainerBox = containerBoxInfo.totalBox;
+			if (totalContainerBox)
+				this._expandChemSpaceSizeToContainerBox(totalContainerBox, coordMode);
+		}
+		return this;
+	},
+	/**
+	 * Automatically expand the size of current chem space to display all child objects.
+	 */
+	autoExpandChemSpaceSize: function()
+	{
+		if (this._isAutoExpandingChemSpace)  // a flag, avoid recursion calls
+			return this;
+		this._isAutoExpandingChemSpace = true;
+		try
+		{
+			var space = this.getChemSpace();
+			var targetObjs = space.getChildren();
+			if (targetObjs)
+				this.expandChemSpaceSizeToTargetObjs(targetObjs, this.getCoordMode());
+		}
+		finally
+		{
+			this._isAutoExpandingChemSpace = false;
+		}
+		return this;
+	},
+	/**
+	 * Returns the new size and coord shift to auto expand chem space.
+	 * @private
+	 */
+	_calcChemSpaceAutoExpandInfo: function()
+	{
+		var space = this.getChemSpace();
+		var targetObjs = space.getChildren();
+		if (targetObjs)
+			return this._calcExpandChemSpaceSizeToTargetObjsInfo(targetObjs, this.getCoordMode());
+		else
+			return null;
+	},
+	/** @private */
+	_createChemSpaceAutoExpandOperations: function(expandInfo)
+	{
+		if (expandInfo)
+		{
+			var result = [];
+			var space = this.getChemSpace();
+			var coordMode = this.getCoordMode();
+			/*
+			if (expandInfo.coordShift)
+				result.push(new Kekule.ChemSpaceEditorOperation.ShiftChildrenCoords(space, expandInfo.coordShift, coordMode, this));
+			if (expandInfo.newSize)
+				result.push(new Kekule.ChemSpaceEditorOperation.ChangeSpaceSize(space, expandInfo.newSize, coordMode, this));
+			*/
+			result.push(new Kekule.ChemSpaceEditorOperation.ChangeSpaceSizeAndShiftChildrenCoords(space, expandInfo.newSize, expandInfo.coordShift, coordMode, this));
+			return result;
+		}
+		else
+			return null;
 	},
 
 	/**
@@ -1166,7 +1596,7 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 		if (nonAtomSetting.variableAtomNotList)
 			result.push({
 				'text': this._getVarAtomNotListLabel(), 'nodeClass': Kekule.VariableAtom,
-				'isNotVarList': true,
+				'isVarNotList': true,
 				'description': Kekule.$L('ChemWidgetTexts.CAPTION_VARIABLE_NOT_ATOM') //Kekule.ChemWidgetTexts.CAPTION_VARIABLE_NOT_ATOM
 			});
 		return result;
@@ -1276,25 +1706,25 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 				'text': $L('ChemWidgetTexts.CAPTION_MOL_BOND_IONIC'),
 				'hint': $L('ChemWidgetTexts.HINT_MOL_BOND_IONIC'),
 				'htmlClass': HTMLCLASS_PREFIX + 'Ionic',
-				'bondProps': {'bondType': BT.IONIC}
+				'bondProps': {'bondType': BT.IONIC, 'bondOrder': BO.SINGLE,	'stereo': BS.NONE}
 			},
 			'coordinate': {
 				'text': $L('ChemWidgetTexts.CAPTION_MOL_BOND_COORDINATE'),
 				'hint': $L('ChemWidgetTexts.HINT_MOL_BOND_COORDINATE'),
 				'htmlClass': HTMLCLASS_PREFIX + 'Coordinate',
-				'bondProps': {'bondType': BT.COORDINATE}
+				'bondProps': {'bondType': BT.COORDINATE, 'bondOrder': BO.SINGLE,	'stereo': BS.NONE}
 			},
 			'metallic': {
 				'text': $L('ChemWidgetTexts.CAPTION_MOL_BOND_METALLIC'),
 				'hint': $L('ChemWidgetTexts.HINT_MOL_BOND_METALLIC'),
 				'htmlClass': HTMLCLASS_PREFIX + 'Metallic',
-				'bondProps': {'bondType': BT.METALLIC}
+				'bondProps': {'bondType': BT.METALLIC, 'bondOrder': BO.SINGLE,	'stereo': BS.NONE}
 			},
 			'hydrogen': {
 				'text': $L('ChemWidgetTexts.CAPTION_MOL_BOND_HYDROGEN'),
 				'hint': $L('ChemWidgetTexts.HINT_MOL_BOND_HYDROGEN'),
 				'htmlClass': HTMLCLASS_PREFIX + 'Hydrogen',
-				'bondProps': {'bondType': BT.HYDROGEN}
+				'bondProps': {'bondType': BT.HYDROGEN, 'bondOrder': BO.SINGLE,	'stereo': BS.NONE}
 			}
 		};
 		var predefinedExtraData = {
@@ -1338,6 +1768,14 @@ Kekule.Editor.ChemSpaceEditor.Settings = Class.create(Kekule.Editor.BaseEditor.S
 			'getter': function() { return this.getEditor().getAllowCreateNewChild(); },
 			'setter': function(value) { this.getEditor().setAllowCreateNewChild(value); }
 		});
+		this.defineProp('autoCreateNewStructFragment', {'dataType': DataType.BOOL, 'serializable': false,
+			'getter': function() { return this.getEditor().getAutoCreateNewStructFragment(); },
+			'setter': function(value) { this.getEditor().setAutoCreateNewStructFragment(value); }
+		});
+		this.defineProp('allowAppendDataToCurr', {'dataType': DataType.BOOL, 'serializable': false,
+			'getter': function() { return this.getEditor().getAllowAppendDataToCurr(); },
+			'setter': function(value) { this.getEditor().setAllowAppendDataToCurr(value); }
+		});
 	}
 });
 
@@ -1354,9 +1792,9 @@ Kekule.Editor.BasicMolEraserIaController = Class.create(Kekule.Editor.BasicErase
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.BasicMolEraserIaController',
 	/** @constructs */
-	initialize: function($super, widget)
+	initialize: function(/*$super, */widget)
 	{
-		$super(widget);
+		this.tryApplySuper('initialize', [widget])  /* $super(widget) */;
 	},
 	/**
 	 * @private
@@ -1468,9 +1906,10 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.BasicMolManipulationIaController',
 	/** @constructs */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
+		/*
 		this.setEnableMagneticMerge(true);
 		this.setEnableNodeMerge(true);
 		this.setEnableNeighborNodeMerge(true);
@@ -1482,6 +1921,7 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 		this.setEnableConstrainedRotate(true);
 		this.setEnableConstrainedResize(true);
 		this.setEnableDirectedMove(true);
+		*/
 		this._suppressConstrainedMoving = false;  // used internally
 		this._suppressConstrainedRotating = false;  // used internally
 		this._isInDirectedMoving = false;
@@ -1490,11 +1930,20 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 	/** @private */
 	initProperties: function()
 	{
+		/*
 		this.defineProp('enableMagneticMerge', {'dataType': DataType.BOOL});
 		this.defineProp('enableNodeMerge', {'dataType': DataType.BOOL});
 		this.defineProp('enableNeighborNodeMerge', {'dataType': DataType.BOOL});
 		this.defineProp('enableConnectorMerge', {'dataType': DataType.BOOL});
 		this.defineProp('enableStructFragmentMerge', {'dataType': DataType.BOOL});
+		*/
+		// now these merge related properties are moved to editor configs, so here we define some overwrite props instead, their value depends on both config settings and local store field values
+		this._defineEditorConfigBasedProperty('enableMagneticMerge', 'interactionConfigs.enableMagneticMerge', {'overwrite': true});
+		this._defineEditorConfigBasedProperty('enableNodeMerge', 'interactionConfigs.enableNodeMerge', {'overwrite': true});
+		this._defineEditorConfigBasedProperty('enableNeighborNodeMerge', 'interactionConfigs.enableNeighborNodeMerge', {'overwrite': true});
+		this._defineEditorConfigBasedProperty('enableConnectorMerge', 'interactionConfigs.enableConnectorMerge', {'overwrite': true});
+		this._defineEditorConfigBasedProperty('enableStructFragmentMerge', 'interactionConfigs.enableStructFragmentMerge', {'overwrite': true});
+
 		//this.defineProp('mergeOperation', {'dataType': 'Kekule.MacroOperation', 'serializable': false});  // store operation of merging nodes
 		//this.defineProp('connectorMergeOperation', {'dataType': 'Kekule.Operation', 'serializable': false});  // store operation of merging
 		this.defineProp('allManipulateObjsMerged', {'dataType': DataType.BOOL, 'serializable': false});  // store whether a merge operation merges all current objects
@@ -1518,15 +1967,47 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 		//this.defineProp('prevMergeOperations', {'dataType': DataType.ARRAY, 'serializable': false});  // store operations of merging of last phrase
 		this.defineProp('mergingDests', {'dataType': DataType.ARRAY, 'serializable': false});  // private
 	},
+	/** @ignore */
+	initPropValues: function()
+	{
+		this.tryApplySuper('initPropValues');
+
+		var options = Kekule.globalOptions.get('chemWidget.editor.molManipulation', {});
+		//console.log(this.getClassName(), options);
+		options = Object.extend({
+			'enableMagneticMerge': true,
+			'enableNodeMerge': true,
+			'enableNeighborNodeMerge': true,
+			'enableConnectorMerge': true,
+			'enableStructFragmentMerge': true,
+			'enableNodeStick': true,
+			'enableStructFragmentStick': true,
+			'enableConstrainedMove': true,
+			'enableConstrainedRotate': true,
+			'enableConstrainedResize': true,
+			'enableDirectedMove': true
+		}, options);
+		this.setEnableMagneticMerge(options.enableMagneticMerge);
+		this.setEnableNodeMerge(options.enableNodeMerge);
+		this.setEnableNeighborNodeMerge(options.enableNeighborNodeMerge);
+		this.setEnableConnectorMerge(options.enableConnectorMerge);
+		this.setEnableStructFragmentMerge(options.enableStructFragmentMerge);
+		this.setEnableNodeStick(options.enableNodeStick);
+		this.setEnableStructFragmentStick(options.enableStructFragmentStick);
+		this.setEnableConstrainedMove(options.enableConstrainedMove);
+		this.setEnableConstrainedRotate(options.enableConstrainedRotate);
+		this.setEnableConstrainedResize(options.enableConstrainedResize);
+		this.setEnableDirectedMove(options.enableDirectedMove);
+	},
 
 	/** @private */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
-		return $super(obj) || (this._isMerging && obj);
+		return this.tryApplySuper('canInteractWithObj', [obj])  /* $super(obj) */ || (this._isMerging && obj);
 	},
 
 	/** @ignore */
-	doSetManipulateObjs: function($super, value)
+	doSetManipulateObjs: function(/*$super, */value)
 	{
 		// When merging just node to another, operating node will be removed from
 		// space temporily, add dest mol to operating objs avoid the disappearing of
@@ -1631,10 +2112,10 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 	},
 
 	/** @private */
-	createManipulateObjInfo: function($super, obj, objIndex, startContextCoord)
+	createManipulateObjInfo: function(/*$super, */obj, objIndex, startContextCoord)
 	{
 		var editor = this.getEditor();
-		var info = $super(obj, objIndex, startContextCoord);
+		var info = this.tryApplySuper('createManipulateObjInfo', [obj, objIndex, startContextCoord])  /* $super(obj, objIndex, startContextCoord) */;
 		var isConstrained = this.isConstrainedMove();
 		if (isConstrained)  // constrained move, store connector length into info
 		{
@@ -1678,8 +2159,25 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 		else
 			return false;
 	},
+	/** @ignore */
+	_getTransformCompareThresholds: function(coordMode)
+	{
+		if (coordMode === Kekule.CoordMode.COORD3D)
+			return this.tryApplySuper('_getTransformCompareThresholds', [coordMode]);
+		else
+		{
+			var tTranslate = this.getEditorConfigs().getStructureConfigs().getDefBondLength() || this.getEditor().getChemSpace().getAutoScaleRefLength() || 0.05;
+			var tRotate = this.getEditorConfigs().getInteractionConfigs().getConstrainedRotateStep() / 5;
+			var tScale = this.getEditorConfigs().getInteractionConfigs().getConstrainedResizeStep() / 5;
+			return {
+				'translate': tTranslate,
+				'rotate': tRotate,
+				'scale': tScale
+			};
+		}
+	},
 	/** @private */
-	_calcActualMovedScreenCoord: function($super, obj, info, newScreenCoord)
+	_calcActualMovedScreenCoord: function(/*$super, */obj, info, newScreenCoord)
 	{
 		var C = Kekule.CoordUtils;
 		var result;
@@ -1746,12 +2244,13 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 		return result;
 	},
 	/** @private */
-	_calcActualRotateAngle: function($super, objs, newDeltaAngle, oldAbsAngle, newAbsAngle)
+	_calcActualRotateAngle: function(/*$super, */objs, newDeltaAngle, oldAbsAngle, newAbsAngle)
 	{
 		var isConstrained = (this.isConstrainedRotate() && (!this._suppressConstrainedRotating));
 		var angleStep = isConstrained?
 			this.getEditorConfigs().getInteractionConfigs().getConstrainedRotateStep(): null;
 
+		//console.log(isConstrained, this.isConstrainedRotate(), this._suppressConstrainedRotating, newDeltaAngle * 180 / Math.PI, angleStep * 180 / Math.PI);
 		if (angleStep)
 		{
 			//var times = Math.floor(newDeltaAngle / angleStep);
@@ -1759,12 +2258,13 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 			return times * angleStep;
 		}
 		else
-			return $super(objs, newDeltaAngle/*, oldAbsAngle, newAbsAngle*/);
+			return this.tryApplySuper('_calcActualRotateAngle', [objs, newDeltaAngle/*, oldAbsAngle, newAbsAngle*/])  /* $super(objs, newDeltaAngle\*, oldAbsAngle, newAbsAngle*\) */;
 	},
 	/** @private */
 	_calcActualResizeScales: function(objs, newScales)
 	{
 		var isConstrained = (this.isConstrainedResize() && (!this._suppressConstrainedResize));
+		//console.log(isConstrained, newScales);
 		if (!isConstrained)
 			return newScales;
 		else  // constrained scale calculation
@@ -1786,7 +2286,7 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 	},
 
 	/** @private */
-	prepareManipulating: function($super, manipulationType, manipulatingObjs, startScreenCoord, startBox, rotateCenter, rotateRefCoord)
+	prepareManipulating: function(/*$super, */manipulationType, manipulatingObjs, startScreenCoord, startBox, rotateCenter, rotateRefCoord)
 	{
 		/*
 		this.setIsMergeDone(false);
@@ -1796,7 +2296,7 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 		this.setMergeOperations([]);
 		this.setMergePreviewOperations([]);
 		this.setStickOperations([]);
-		$super(manipulationType, manipulatingObjs, startScreenCoord, startBox, rotateCenter, rotateRefCoord);
+		this.tryApplySuper('prepareManipulating', [manipulationType, manipulatingObjs, startScreenCoord, startBox, rotateCenter, rotateRefCoord])  /* $super(manipulationType, manipulatingObjs, startScreenCoord, startBox, rotateCenter, rotateRefCoord) */;
 		//this._mergeReversed = false;  // internal flag
 		this._directedMovingDirection = null;
 		this.setManuallyHotTrack(true);  // manully hot track
@@ -1804,50 +2304,14 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 	},
 
 	/** @ignore */
-	manipulateEnd: function($super)
+	manipulateBeforeStopping: function(/*$super*/)
 	{
-		$super();
-		this.getEditor().hideHotTrack();
-		this.setManuallyHotTrack(false);
-	},
-
-	/** @ignore */
-	createManipulateOperation: function($super)
-	{
-		$super();
-		//this.setStickOperations([]);
-		this.setMergeOperations([]);
-		this.setMergePreviewOperations([]);
-		this.setStickOperations([]);
-	},
-
-	/** @ignore */
-	getAllObjOperations: function($super, isTheFinalOperationToEditor)
-	{
-		/*
-		var moveOpers = this.getMoveOperations();
-		var mergeOpers = this.getMergeOperations();
-		var count = Math.max(moveOpers.length, mergeOpers.length);
-		var result = [];
-		for (var i = 0; i < count; ++i)
-		{
-			if (mergeOpers[i])
-				result.push(mergeOpers[i]);
-			else
-				result.push(moveOpers[i]);
-		}
-		return result;
-		*/
-
-		//console.log('getAllObjOperations', isTheFinalOperationToEditor, this.useMergePreview());
-		var mergeOpers;
-		// if use merge preview, we should do the actual merging when the manipulation is done
-		if (isTheFinalOperationToEditor && this.useMergePreview())
+		this.tryApplySuper('manipulateBeforeStopping')  /* $super() */;
+		if (this.useMergePreview())   // create concrete merge operations before manipulation end
 		{
 			var previewOpers = this.getMergePreviewOperations();
 			if (previewOpers && previewOpers.length)
 			{
-				//console.log('preview opers', previewOpers);
 				var opers = this.getMergeOperations();
 				for (var i = 0, l = previewOpers.length; i < l; ++i)
 				{
@@ -1873,16 +2337,86 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 				}
 				this.executeMergeOpers(opers);
 			}
+		}
+	},
+
+	/** @ignore */
+	manipulateEnd: function(/*$super*/)
+	{
+		this.tryApplySuper('manipulateEnd')  /* $super() */;
+		this.getEditor().hideHotTrack();
+		this.setManuallyHotTrack(false);
+	},
+
+	/** @ignore */
+	createManipulateOperation: function(/*$super*/)
+	{
+		this.tryApplySuper('createManipulateOperation')  /* $super() */;
+		//this.setStickOperations([]);
+		this.setMergeOperations([]);
+		this.setMergePreviewOperations([]);
+		this.setStickOperations([]);
+	},
+
+	/** @ignore */
+	getAllObjOperations: function(/*$super, */isTheFinalOperationToEditor)
+	{
+		/*
+		var moveOpers = this.getMoveOperations();
+		var mergeOpers = this.getMergeOperations();
+		var count = Math.max(moveOpers.length, mergeOpers.length);
+		var result = [];
+		for (var i = 0; i < count; ++i)
+		{
+			if (mergeOpers[i])
+				result.push(mergeOpers[i]);
+			else
+				result.push(moveOpers[i]);
+		}
+		return result;
+		*/
+
+		//console.log('getAllObjOperations', isTheFinalOperationToEditor, this.useMergePreview());
+		/* Now the concrete merge operations are created and executed in manipulateBeforeStopping method,
+		   so here the codes are removed.
+		var mergeOpers;
+		// if use merge preview, we should do the actual merging when the manipulation is done
+		if (isTheFinalOperationToEditor && this.useMergePreview())
+		{
+			var previewOpers = this.getMergePreviewOperations();
+			if (previewOpers && previewOpers.length)
+			{
+				//console.log('preview opers', previewOpers);
+				var opers = this.getMergeOperations();
+				for (var i = 0, l = previewOpers.length; i < l; ++i)
+				{
+					var previewOper = previewOpers[i];
+					if (previewOper)  // may be empty slot in operations
+					{
+						// create concrete merge operation
+						{
+							var mergeConnector = (previewOper instanceof Kekule.ChemStructOperation.MergeConnectorsBase);
+							var oper = mergeConnector ?
+								this.createConnectorMergeOperation(previewOper.getTarget(), previewOper.getDest()) :
+								this.createNodeMergeOperation(previewOper.getTarget(), previewOper.getDest());
+							opers.push(oper);
+						}
+					}
+				}
+				this.executeMergeOpers(opers);
+			}
 			mergeOpers = opers;  // this.getMergeOperations();
 		}
 		else
 		{
 			mergeOpers = this.getMergeOperationsInManipulating();
 		}
+		*/
+		var mergeOpers = this.getMergeOperations();
 
 		//console.log('merge operations', mergeOpers);
 
-		var result = $super() || [];
+		var result = this.tryApplySuper('getAllObjOperations')  /* $super() */ || [];
 		if (mergeOpers && mergeOpers.length)
 			Kekule.ArrayUtils.pushUnique(result, mergeOpers);
 
@@ -1905,6 +2439,9 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 
 		return result;
 	},
+
+	/** @private */
+	//_getConcreteMergeOperations
 
 	/** @private */
 	_objCanBeMagneticMerged: function(obj)
@@ -2041,7 +2578,7 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 	},
 
 	/** @ignore */
-	moveManipulatedObjs: function($super, endScreenCoord)
+	moveManipulatedObjs: function(/*$super, */endScreenCoord)
 	{
 		var actualEndCoord;  // = Object.extend({}, endScreenCoord);
 		//console.log(this.isDirectedMove(), this._isInDirectedMoving);
@@ -2074,11 +2611,11 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 		}
 		else  // normal move
 			actualEndCoord = endScreenCoord;
-		return $super(actualEndCoord);
+		return this.tryApplySuper('moveManipulatedObjs', [actualEndCoord])  /* $super(actualEndCoord) */;
 	},
 
 		/** @ignore */
-	applyManipulatingObjsInfo: function($super, endScreenCoord)
+	applyManipulatingObjsInfo: function(/*$super, */endScreenCoord)
 	{
 		var MagneticOperTypes = {MERGE: 0, MERGE_BOND: 1, STICK: 10, UNSTICK: 20};
 
@@ -2584,7 +3121,7 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 			this.reverseMergeOpers(oldMergeOpers);
 		}
 
-		$super(endScreenCoord);
+		this.tryApplySuper('applyManipulatingObjsInfo', [endScreenCoord])  /* $super(endScreenCoord) */;
 	},
 
 	/** @private */
@@ -2743,7 +3280,7 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 	 * @private
 	 * @deprecated
 	 */
-	doMoveManipulatedObj_old: function($super, objIndex, obj, newScreenCoord, moverScreenCoord)
+	doMoveManipulatedObj_old: function(/*$super, */objIndex, obj, newScreenCoord, moverScreenCoord)
 	{
 		var editor = this.getEditor();
 
@@ -2908,7 +3445,7 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 			{
 				this.reverseMergeOpers(objIndex);
 			}
-			$super(objIndex, obj, newScreenCoord, moverScreenCoord);
+			this.tryApplySuper('doMoveManipulatedObj_old', [objIndex, obj, newScreenCoord, moverScreenCoord])  /* $super(objIndex, obj, newScreenCoord, moverScreenCoord) */;
 		}
 	},
 
@@ -3113,6 +3650,7 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 			{
 				if (opers[i])
 				{
+					// console.log('[merge!!!!!]', opers[i].getClassName());
 					opers[i].execute();
 					var dest = opers[i].getDest ? opers[i].getDest() : null;
 					if (dest)
@@ -3121,7 +3659,6 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 			}
 			this.setMergingDests(mergingDests.length ? mergingDests : null);
 
-			//console.log('[merge!!!!!]');
 			this.refreshManipulateObjs();
 			this._mergeJustReversed = false;
 		}
@@ -3169,13 +3706,14 @@ Kekule.Editor.BasicMolManipulationIaController = Class.create(Kekule.Editor.Basi
 	},
 
 	/** @private */
-	react_pointermove: function($super, e)
+	react_pointermove: function(/*$super, */e)
 	{
 		// check if ALT key is pressed, if so, constrained move/rotate mode should be disabled
 		this._suppressConstrainedMoving = e.getAltKey();
 		this._suppressConstrainedRotating = e.getAltKey();
+		this._suppressConstrainedResize = e.getAltKey();
 		this._isInDirectedMoving = e.getShiftKey();
-		return $super(e);
+		return this.tryApplySuper('react_pointermove', [e])  /* $super(e) */;
 	}
 });
 // register
@@ -3192,11 +3730,21 @@ Kekule.Editor.SelectIaController = Class.create(Kekule.Editor.BasicMolManipulati
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.SelectIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
+		/*
 		this.setEnableSelect(true);
 		this.setEnableGestureManipulation(true);
+		*/
+	},
+	initPropValues: function()
+	{
+		this.tryApplySuper('initPropValues');
+
+		var getOptionValue = Kekule.globalOptions.get;
+		this.setEnableSelect(getOptionValue('chemWidget.editor.enableSelect', true));
+		this.setEnableGestureManipulation(getOptionValue('chemWidget.editor.enableGesture', true));
 	}
 });
 // register
@@ -3213,9 +3761,9 @@ Kekule.Editor.StructureInsertIaController = Class.create(Kekule.Editor.BasicMolM
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.StructureInsertIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this._manipulatedBasicObjs = null;  // used internally
 	},
 	/**
@@ -3228,10 +3776,10 @@ Kekule.Editor.StructureInsertIaController = Class.create(Kekule.Editor.BasicMolM
 		return this._manipulatedBasicObjs;
 	},
 	/** @ignore */
-	doSetManipulateOriginObjs: function($super, objs)
+	doSetManipulateOriginObjs: function(/*$super, */objs)
 	{
 		this._manipulatedBasicObjs = this._getManipulatedBasicObjects(objs);
-		return $super(objs);
+		return this.tryApplySuper('doSetManipulateOriginObjs', [objs])  /* $super(objs) */;
 	},
 	/** @private */
 	_getManipulatedBasicObjects: function(manipulatingObjs)
@@ -3256,7 +3804,7 @@ Kekule.Editor.StructureInsertIaController = Class.create(Kekule.Editor.BasicMolM
 		return result;
 	},
 	/** @ignore */
-	stopManipulate: function($super)
+	stopManipulate: function(/*$super*/)
 	{
 		if (this.needAutoSelectNewlyInsertedObjects())
 		{
@@ -3264,7 +3812,7 @@ Kekule.Editor.StructureInsertIaController = Class.create(Kekule.Editor.BasicMolM
 			this.doneInsertOrModifyBasicObjects(basicObjs);
 			//console.log(basicObjs.length, filteredObjs.length);
 		}
-		return $super();
+		return this.tryApplySuper('stopManipulate')  /* $super() */;
 	}
 });
 
@@ -3289,11 +3837,12 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.MolBondIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this.setState(BC.State.INITIAL);
 		this.setBondOrder(Kekule.BondOrder.SINGLE);  // default is single bond
+		/*
 		this.setAllowBondingToBond(false);
 		this.setEnableBondModification(true);
 		this.setEnableSelect(false);
@@ -3301,6 +3850,7 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 		//this.setEnableRemove(false);
 		this.setAutoSwitchBondOrder(false);
 		this.setEnableNeighborNodeMerge(false);
+		*/
 	},
 	/** @private */
 	initProperties: function()
@@ -3322,6 +3872,20 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 		//this.defineProp('autoCreateNewStructFragment', {'dataType': DataType.BOOL});
 		this.defineProp('initialBondDirection', {'dataType': DataType.FLOAT});
 	},
+	/** @ignore */
+	initPropValues: function()
+	{
+		this.tryApplySuper('initPropValues');
+		this.setEnableSelect(false);
+		this.setEnableMove(true);
+		//this.setEnableRemove(false);
+		this.setEnableNeighborNodeMerge(false);
+
+		var getOptionValue = Kekule.globalOptions.get;
+		this.setEnableBondModification(getOptionValue('chemWidget.editor.bondManipulation.enableBondModification', true));
+		this.setAllowBondingToBond(getOptionValue('chemWidget.editor.bondManipulation.allowBondingToBond', false));
+		this.setAutoSwitchBondOrder(getOptionValue('chemWidget.editor.bondManipulation.autoSwitchBondOrder', false));
+	},
 
 	/** @private */
 	_isBondDifferent: function(bond)
@@ -3336,9 +3900,19 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 				|| (bond.getBondOrder() !== this.getBondOrder())
 				|| (bond.getStereo() !== this.getBondStereo());
 	},
+	/** @private */
+	_isBondOrderSwitchApplicable: function(targetBond)
+	{
+		return this.getAutoSwitchBondOrder()
+			&& (this.getBondOrder() === Kekule.BondOrder.SINGLE)
+			&& (this.getBondType() === Kekule.BondType.COVALENT)
+			&& (this.getBondStereo() === Kekule.BondStereo.NONE)
+			&& (!targetBond.getBondType() || targetBond.getBondType() === Kekule.BondType.COVALENT)
+			&& (!targetBond.getStereo() || targetBond.getStereo() === Kekule.BondStereo.NONE);
+	},
 
 	/** @private */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
 		var state = this.getState();
 		//console.log(state, BC.State.INITIAL);
@@ -3359,14 +3933,14 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 						return this.getAutoSwitchBondOrder()
 							|| (obj.getBondOrder() !== this.getBondOrder());
 						*/
-						return this._isBondDifferent(obj);
+						return this._isBondDifferent(obj) || this._isBondOrderSwitchApplicable(obj);
 					}
 				}
 				else return false;
 			}
 		}
 		else
-			return $super(obj);
+			return this.tryApplySuper('canInteractWithObj', [obj])  /* $super(obj) */;
 	},
 
 	/** @ignore */
@@ -3376,10 +3950,10 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 	},
 
 	/** @ignore */
-	getInsertedObjs: function($super)
+	getInsertedObjs: function(/*$super*/)
 	{
 		var bond = this.getBond();
-		return bond? [bond]: $super();
+		return bond? [bond]: this.tryApplySuper('getInsertedObjs')  /* $super() */;
 	},
 
 	/**
@@ -3513,19 +4087,19 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 	},
 
 	/** @private */
-	addOperationToEditor: function($super)
+	addOperationToEditor: function(/*$super*/)
 	{
 		/*
 		if (this.getAllManipulateObjsMerged())
 			return null;
 		else
 		*/
-		return $super();
+		return this.tryApplySuper('addOperationToEditor')  /* $super() */;
 	},
 	/** @ignore */
-	getAllObjOperations: function($super, isTheFinalOperationToEditor)
+	getAllObjOperations: function(/*$super, */isTheFinalOperationToEditor)
 	{
-		var result = $super(isTheFinalOperationToEditor) || [];
+		var result = this.tryApplySuper('getAllObjOperations', [isTheFinalOperationToEditor])  /* $super(isTheFinalOperationToEditor) */ || [];
 		var op = this.getAddBondOperation();
 		if (op)
 			result.unshift(op);
@@ -3614,7 +4188,8 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 		var bondOrder;
 		var BO = Kekule.BondOrder;
 		var loopBondOrders = [BO.SINGLE, BO.DOUBLE, BO.TRIPLE];
-		if (this.getAutoSwitchBondOrder() && (bondType === Kekule.BondType.COVALENT) && (bond.getBondType === Kekule.BondType.COVALENT))
+		//if (this.getAutoSwitchBondOrder() && (bondType === Kekule.BondType.COVALENT) && (bond.getBondType() === Kekule.BondType.COVALENT))
+		if (this._isBondOrderSwitchApplicable(bond))
 		{
 			var oldOrder = bond.getBondOrder();
 			var index = loopBondOrders.indexOf(oldOrder);
@@ -3738,7 +4313,7 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 		}
 	},
 	/** @private */
-	react_pointerup: function($super, e)
+	react_pointerup: function(/*$super, */e)
 	{
 		var state = this.getState();
 		var startCoord = this.getStartCoord();
@@ -3749,6 +4324,7 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 			e.preventDefault();
 			if (Kekule.CoordUtils.isEqual(startCoord, endCoord))  // click
 			{
+				this.manipulateBeforeStopping();
 				// wrap up, add bond and append operation
 				this.addOperationToEditor();
 				this.stopManipulate();
@@ -3757,7 +4333,7 @@ Kekule.Editor.MolBondIaController = Class.create(Kekule.Editor.StructureInsertIa
 			}
 		}
 
-		return $super(e);  // finish move operation first;
+		return this.tryApplySuper('react_pointerup', [e])  /* $super(e) */;  // finish move operation first;
 	}
 });
 
@@ -3791,17 +4367,17 @@ Kekule.Editor.MolAtomIaController_OLD = Class.create(Kekule.Editor.BaseEditorIaC
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.MolAtomIaController_OLD',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this._createNonAtomLabelInfos();
 		this._setterShown = false;  // user internally
 	},
-	finalize: function($super)
+	finalize: function(/*$super*/)
 	{
 		if (this.getAtomSetter())
 			this.getAtomSetter().finalize();
-		$super();
+		this.tryApplySuper('finalize')  /* $super() */;
 	},
 	/** @private */
 	initProperties: function()
@@ -3814,7 +4390,7 @@ Kekule.Editor.MolAtomIaController_OLD = Class.create(Kekule.Editor.BaseEditorIaC
 	},
 
 	/** @private */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
 		if (this.isValidNode(obj))
 			return true;
@@ -4068,7 +4644,8 @@ Kekule.Editor.MolAtomIaController_OLD = Class.create(Kekule.Editor.BaseEditorIaC
 		 */
 		//setter.show();
 		setter._applied = false;
-		setter.show(null, null, Kekule.Widget.ShowHideType.POPUP);
+		setter.setStandaloneOnShowHide(true);
+		setter.show(this.getEditor(), null, Kekule.Widget.ShowHideType.POPUP);
 
 		(function(){
 			setter.focus();
@@ -4234,7 +4811,7 @@ Kekule.Editor.MolAtomIaController_OLD = Class.create(Kekule.Editor.BaseEditorIaC
 		if (operation)  // only execute when there is real modification
 		{
 			var editor = this.getEditor();
-			editor.beginUpdateObject();
+			editor.beginManipulateAndUpdateObject();
 			try
 			{
 				operation.execute();
@@ -4246,7 +4823,7 @@ Kekule.Editor.MolAtomIaController_OLD = Class.create(Kekule.Editor.BaseEditorIaC
 			}
 			finally
 			{
-				editor.endUpdateObject();
+				editor.endManipulateAndUpdateObject();
 			}
 
 			if (editor && editor.getEnableOperHistory() && operation)
@@ -4296,28 +4873,39 @@ Kekule.Editor.MolAtomIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.MolAtomIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this._createNonAtomLabelInfos();
 		this._setterShown = false;  // user internally
 	},
-	finalize: function($super)
+	finalize: function(/*$super*/)
 	{
 		if (this.getAtomSetter())
 			this.getAtomSetter().finalize();
-		$super();
+		this.tryApplySuper('finalize')  /* $super() */;
 	},
 	/** @private */
 	initProperties: function()
 	{
 		this.defineProp('currAtom', {'dataType': DataType.OBJECT, 'serializable': false});  // private
-		this.defineProp('atomSetter', {'dataType': DataType.OBJECT, 'serializable': false});  // private
 		this.defineProp('nonAtomLabelInfos', {'dataType': DataType.ARRAY, 'serializable': false});  // private
+		this.defineProp('atomSetter', {
+			'dataType': DataType.OBJECT, 'serializable': false,
+			'setter': function(value)
+			{
+				var old = this.getAtomSetter();
+				if (old)
+					this.unbindAtomSetter(old);
+				this.setPropStoreFieldValue('atomSetter', value);
+				if (value)
+					this.bindAtomSetter(value);
+			}
+		});  // private
 	},
 
 	/** @private */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
 		if (this.isValidNode(obj))
 			return true;
@@ -4424,68 +5012,126 @@ Kekule.Editor.MolAtomIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 		return result;
 	},
 	/** @private */
+	bindAtomSetter: function(atomSetterWidget)
+	{
+		this._initAtomSetterWidgetSettings(atomSetterWidget);
+		this._setAtomSetterEventListener(atomSetterWidget, true);
+	},
+	/** @private */
+	unbindAtomSetter: function(atomSetterWidget)
+	{
+		this._setAtomSetterEventListener(atomSetterWidget, false);
+	},
+	/** @private */
 	_createAtomSetterWidget: function(doc, parentElem)
 	{
 		var result = new Kekule.ChemWidget.StructureNodeSetter(this.getEditor());
 		result.setUseDropDownSelectPanel(true);
-		result.addClassName(CCNS.CHEMEDITOR_ATOM_SETTER);
+		//this._initAtomSetterWidgetSettings(result);
+		result.appendToElem(parentElem);
 
-		var listAtoms = AU.clone(this.getEditor().getEditorConfigs().getStructureConfigs().getPrimaryOrgChemAtoms());
-		listAtoms.push('...');  // add periodic table item
-		//result.setSelectableElementSymbols(listAtoms);
-		// non-atom nodes
-		var nonAtomLabelInfos = this.getNonAtomLabelInfos();
-		//result.setSelectableNonElementInfos(nonAtomLabelInfos);
-		// subgroups
-		//result.setSelectableSubGroupRepItems(Kekule.Editor.StoredSubgroupRepositoryItem2D.getAllRepItems());
+		return result;
+	},
+	/** @private */
+	_initAtomSetterWidgetSettings: function(widget)
+	{
+		widget.addClassName(CCNS.CHEMEDITOR_ATOM_SETTER);
 
-		result.setSelectableInfos({
-			'elementSymbols': listAtoms,
-			'nonElementInfos': nonAtomLabelInfos,
-			'subGroupRepItems': Kekule.Editor.StoredSubgroupRepositoryItem2D.getAllRepItems()
-		});
+		if (widget.setSelectableInfos)
+		{
+			var listAtoms = AU.clone(this.getEditor().getEditorConfigs().getStructureConfigs().getPrimaryOrgChemAtoms());
+			listAtoms.push('...');  // add periodic table item
+			//result.setSelectableElementSymbols(listAtoms);
+			// non-atom nodes
+			var nonAtomLabelInfos = this.getNonAtomLabelInfos();
+			//result.setSelectableNonElementInfos(nonAtomLabelInfos);
+			// subgroups
+			//result.setSelectableSubGroupRepItems(Kekule.Editor.StoredSubgroupRepositoryItem2D.getAllRepItems());
 
+			widget.setSelectableInfos({
+				'elementSymbols': listAtoms,
+				'nonElementInfos': nonAtomLabelInfos,
+				'subGroupRepItems': Kekule.Editor.StoredSubgroupRepositoryItem2D.getAllRepItems()
+			});
+		}
+	},
+	/** @private */
+	_setAtomSetterEventListener: function(widget, isBind)
+	{
 		// react to value change of setter
-		var self = this;
-		result.addEventListener('keyup', function(e)
-			{
-				var ev = e.htmlEvent;
-				if (ev.getKeyCode() === Kekule.X.Event.KeyCode.ENTER)
-				{
-					self.applySetter(result);
-					result.dismiss();  // avoid call apply setter twice
-				}
-			}
-		);
+		//var self = this;
+		/*
+        widget.addEventListener('keyup', function(e)
+            {
+                var ev = e.htmlEvent;
+                if (ev.getKeyCode() === Kekule.X.Event.KeyCode.ENTER)
+                {
+                    self.applySetter(widget);
+                    widget.dismiss();  // avoid call apply setter twice
+                }
+            }
+        );
 
-		result.addEventListener('valueSelect', function(e){
+		widget.addEventListener('valueChange', function(e){
 			//var data = e.value;
 			//console.log(e.target, e.currentTarget);
 			if (self.getAtomSetter() && self.getAtomSetter().isShown())
 			{
-				self.applySetter(result);
-				result.dismiss();  // avoid call apply setter twice
+				self.applySetter(widget);
+				widget.dismiss();  // avoid call apply setter twice
 			}
 		});
 
-		result.addEventListener('showStateChange', function(e)
+		widget.addEventListener('showStateChange', function(e)
 			{
-				if (e.target === result && !e.byDomChange)
+				if (e.target === widget && !e.byDomChange)
 				{
 					//console.log('show state change', e);
 					if (!e.isShown && !e.isDismissed)  // widget hidden, feedback the edited value
 					{
 						if (self.getAtomSetter() && self.getAtomSetter().isShown())
-							self.applySetter(result);
+							self.applySetter(widget);
 					}
 				}
 			}
 		);
+		*/
+		if (!isBind)
+		{
+			widget.removeEventListener('valueChange', this._reactAtomSetterValueChange, this);
+			//widget.removeEventListener('showStateChange', this._reactAtomSetterShowStateChange, this);
+		}
+		else
+		{
+			widget.addEventListener('valueChange', this._reactAtomSetterValueChange, this);
+			//widget.addEventListener('showStateChange', this._reactAtomSetterShowStateChange, this);
+		}
+	},
 
-
-		result.appendToElem(parentElem);
-
-		return result;
+	/** @private */
+	_reactAtomSetterValueChange: function(e)
+	{
+		var widget = this.getAtomSetter();
+		if (widget && widget.isShown())
+		{
+			if (e.value)  // ensure there is actual changes
+				this.applySetter(widget);
+			widget.dismiss();  // avoid call apply setter twice
+		}
+	},
+	/** @private */
+	_reactAtomSetterShowStateChange: function(e)
+	{
+		var widget = this.getAtomSetter();
+		if (e.target === widget && !e.byDomChange)
+		{
+			//console.log('show state change', e);
+			if (!e.isShown && !e.isDismissed)  // widget hidden, feedback the edited value
+			{
+				if (widget && widget.isShown())
+					this.applySetter(widget);
+			}
+		}
 	},
 
 	/** @private */
@@ -4557,14 +5203,17 @@ Kekule.Editor.MolAtomIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 		style.left = (coord.x - posAdjust) + 'px';
 		style.top = (coord.y - posAdjust) + 'px';
 		style.opacity = 1;
-		inputBox.getElement().style.fontSize = fontSize + 'px';
+		//inputBox.getElement().style.fontSize = fontSize + 'px';
+		if (setter.setNodeInputBoxFontSize)
+			setter.setNodeInputBoxFontSize(fontSize + 'px');
 		/*
 		 style.marginTop = -posAdjust + 'px';
 		 style.marginLeft = -posAdjust + 'px';
 		 */
 		//setter.show();
 		setter._applied = false;
-		setter.show(null, null, Kekule.Widget.ShowHideType.POPUP);
+		setter.setStandaloneOnShowHide(true);
+		setter.show(this.getEditor(), null, Kekule.Widget.ShowHideType.POPUP);
 
 		(function(){
 			inputBox.focus();
@@ -4589,7 +5238,7 @@ Kekule.Editor.MolAtomIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 			return;
 
 		//console.log('apply setter', newData);
-
+		/*
 		var nodeClass = newData.nodeClass;
 		var modifiedProps = newData.props;
 		var repItem = newData.repositoryItem;
@@ -4617,6 +5266,31 @@ Kekule.Editor.MolAtomIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 			this.applyModification(atom, newNode, nodeClass, modifiedProps);
 			setter._applied = true;
 		}
+		*/
+		var operation = Kekule.Editor.OperationUtils.createNodeModificationOperationFromData(atom, newData, this.getEditor());
+		if (operation)  // only execute when there is real modification
+		{
+			var editor = this.getEditor();
+			editor.beginManipulateAndUpdateObject();
+			try
+			{
+				operation.execute();
+			}
+			catch (e)
+			{
+				//Kekule.error(/*Kekule.ErrorMsg.NOT_A_VALID_ATOM*/Kekule.$L('ErrorMsg.NOT_A_VALID_ATOM'));
+				throw(e);
+			}
+			finally
+			{
+				editor.endManipulateAndUpdateObject();
+			}
+
+			if (editor && editor.getEnableOperHistory() && operation)
+			{
+				editor.pushOperation(operation);
+			}
+		}
 	},
 
 	/**
@@ -4625,10 +5299,12 @@ Kekule.Editor.MolAtomIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 	 * @param newNodeClass
 	 * @param modifiedProps
 	 * @private
+	 * @deprecated
 	 */
 	applyModification: function(node, newNode, newNodeClass, modifiedProps)
 	{
-		var newNode;
+		/*
+		//var newNode;
 		var operGroup, oper;
 		var oldNodeClass = node.getClass();
 		if (newNode && !newNodeClass)
@@ -4653,12 +5329,14 @@ Kekule.Editor.MolAtomIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 			if (operGroup)
 				operGroup.add(oper);
 		}
-
 		var operation = operGroup || oper;
+		*/
+		var operation = Kekule.Editor.OperationUtils.createNodeModificationOperation(node, newNode, newNodeClass, modifiedProps, this.getEditor());
+
 		if (operation)  // only execute when there is real modification
 		{
 			var editor = this.getEditor();
-			editor.beginUpdateObject();
+			editor.beginManipulateAndUpdateObject();
 			try
 			{
 				operation.execute();
@@ -4670,7 +5348,7 @@ Kekule.Editor.MolAtomIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 			}
 			finally
 			{
-				editor.endUpdateObject();
+				editor.endManipulateAndUpdateObject();
 			}
 
 			if (editor && editor.getEnableOperHistory() && operation)
@@ -4726,9 +5404,9 @@ Kekule.Editor.RepositoryIaController = Class.create(Kekule.Editor.StructureInser
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.RepositoryIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this.setEnableSelect(false);
 		this._repObjStartingScreenCoord = null;
 	},
@@ -4749,9 +5427,9 @@ Kekule.Editor.RepositoryIaController = Class.create(Kekule.Editor.StructureInser
 		return '';
 	},
 	/** @private */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
-		return $super(obj);
+		return this.tryApplySuper('canInteractWithObj', [obj])  /* $super(obj) */;
 	},
 	/**
 	 * Returns if obj is a valid starting point of creating repository item.
@@ -4893,16 +5571,16 @@ Kekule.Editor.RepositoryIaController = Class.create(Kekule.Editor.StructureInser
 	},
 
 	/** @ignore */
-	getAllObjOperations: function($super, isTheFinalOperationToEditor)
+	getAllObjOperations: function(/*$super, */isTheFinalOperationToEditor)
 	{
-		var result = $super(isTheFinalOperationToEditor) || [];
+		var result = this.tryApplySuper('getAllObjOperations', [isTheFinalOperationToEditor])  /* $super(isTheFinalOperationToEditor) */ || [];
 		var repOper = this.getAddRepObjsOper();
 		if (repOper)
 			result.unshift(repOper);
 		return result;
 	},
 	/** @private */
-	addOperationToEditor: function($super)
+	addOperationToEditor: function(/*$super*/)
 	{
 		/*
 		if (this.getAllManipulateObjsMerged())
@@ -4910,7 +5588,7 @@ Kekule.Editor.RepositoryIaController = Class.create(Kekule.Editor.StructureInser
 		else
 		*/
 		// even all nodes are merged, bond may be added as well
-		return $super();
+		return this.tryApplySuper('addOperationToEditor')  /* $super() */;
 	},
 
 	/**
@@ -5078,7 +5756,7 @@ Kekule.Editor.RepositoryIaController = Class.create(Kekule.Editor.StructureInser
 		}
 	},
 	/** @private */
-	react_pointerup: function($super, e)
+	react_pointerup: function(/*$super, */e)
 	{
 		var state = this.getState();
 		var startCoord = this.getStartCoord();
@@ -5088,6 +5766,7 @@ Kekule.Editor.RepositoryIaController = Class.create(Kekule.Editor.StructureInser
 		{
 			if (Kekule.CoordUtils.isEqual(startCoord, endCoord))  // click
 			{
+				this.manipulateBeforeStopping();
 				this.addOperationToEditor();
 				this.stopManipulate();
 				this.setState(S.NORMAL);
@@ -5096,7 +5775,7 @@ Kekule.Editor.RepositoryIaController = Class.create(Kekule.Editor.StructureInser
 			}
 		}
 
-		return $super(e);  // finish move operation
+		return this.tryApplySuper('react_pointerup', [e])  /* $super(e) */;  // finish move operation
 	}
 });
 
@@ -5114,9 +5793,9 @@ Kekule.Editor.RepositoryStructureFragmentIaController = Class.create(Kekule.Edit
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.RepositoryStructureFragmentIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 	},
 	/** @private */
 	initProperties: function()
@@ -5150,9 +5829,9 @@ Kekule.Editor.MolFlexStructureIaController = Class.create(Kekule.Editor.Reposito
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.MolFlexStructureIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this.setEnableSelect(false);
 	},
 	/** @private */
@@ -5175,9 +5854,9 @@ Kekule.Editor.MolFlexStructureIaController = Class.create(Kekule.Editor.Reposito
 	},
 
 	/** @ignore */
-	manipulateEnd: function($super)
+	manipulateEnd: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('manipulateEnd')  /* $super() */;
 		this.hideAssocMarker();
 	},
 
@@ -5243,9 +5922,9 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.MolFlexChainIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this.setEnableSelect(false);
 		// private
 		this._deltaDistance = null;
@@ -5264,7 +5943,7 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 		this.setRepositoryItem(rep);
 	},
 	/** @ignore */
-	updateAssocMarker: function($super, coord, props, doNotRepaint)
+	updateAssocMarker: function(/*$super, */coord, props, doNotRepaint)
 	{
 		var editor = this.getEditor();
 		var style = this.getAssocMarker().getDrawStyles();
@@ -5315,7 +5994,7 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 			}
 		}
 		// then call $super, and repaint the marker
-		$super(currCoord, props, doNotRepaint);
+		this.tryApplySuper('updateAssocMarker', [currCoord, props, doNotRepaint])  /* $super(currCoord, props, doNotRepaint) */;
 	},
 	/** @private */
 	getChainMaxAtomCount: function()
@@ -5323,13 +6002,13 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 		return Math.max(this.getEditorConfigs().getStructureConfigs().getMaxFlexChainAtomCount(), 0);
 	},
 	/** @ignore */
-	manipulateEnd: function($super)
+	manipulateEnd: function(/*$super*/)
 	{
 		this._clearManipulateObjInfoCache();
-		$super();
+		this.tryApplySuper('manipulateEnd')  /* $super() */;
 	},
 	/** @ignore */
-	createManipulateObjInfo: function($super, obj, objIndex, startContextCoord)
+	createManipulateObjInfo: function(/*$super, */obj, objIndex, startContextCoord)
 	{
 		// try use cached info first
 		var negative = this.getRepositoryItem().getNegativeDirection();
@@ -5341,15 +6020,15 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 		}
 		else  // calculate and save to cache
 		{
-			var info = $super(obj, objIndex, startContextCoord);
+			var info = this.tryApplySuper('createManipulateObjInfo', [obj, objIndex, startContextCoord])  /* $super(obj, objIndex, startContextCoord) */;
 			this._setCachedManipulateObjInfo(info, objIndex, negative);
 			return info;
 		}
 	},
 	/** @ignore */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
-		return $super(obj) && (obj instanceof Kekule.ChemStructureNode);
+		return this.tryApplySuper('canInteractWithObj', [obj])  /* $super(obj) */ && (obj instanceof Kekule.ChemStructureNode);
 	},
 	/** @ignore */
 	getActualManipulatingObjects: function(objs)
@@ -5416,9 +6095,9 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 			return null;
 	},
 	/** @ignore */
-	addRepositoryObj: function($super, targetObj, screenCoord, ignoreUnconnectedStructCheck)
+	addRepositoryObj: function(/*$super, */targetObj, screenCoord, ignoreUnconnectedStructCheck)
 	{
-		var result = $super(targetObj, screenCoord, ignoreUnconnectedStructCheck);
+		var result = this.tryApplySuper('addRepositoryObj', [targetObj, screenCoord, ignoreUnconnectedStructCheck])  /* $super(targetObj, screenCoord, ignoreUnconnectedStructCheck) */;
 		/*
 		// debug
 		var mol = result.objects[0];
@@ -5433,7 +6112,7 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 		return result;
 	},
 	/** @ignore */
-	insertRepositoryObjToEditor: function($super, startingCoord, startingObj, isUpdate)
+	insertRepositoryObjToEditor: function(/*$super, */startingCoord, startingObj, isUpdate)
 	{
 		if (!isUpdate)
 		{
@@ -5446,7 +6125,7 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 			this.getRepositoryItem().setAtomCount(initialAtomCount);
 		}
 		this._isUpdateRepObj = isUpdate;  // a flag indicaing whether is update chain
-		var result = $super(startingCoord, startingObj, isUpdate);
+		var result = this.tryApplySuper('insertRepositoryObjToEditor', [startingCoord, startingObj, isUpdate])  /* $super(startingCoord, startingObj, isUpdate) */;
 		this._chain = result && result.objects[0];
 
 		if (result && !isUpdate)
@@ -5469,7 +6148,7 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 		return result;
 	},
 	/** @ignore */
-	doTransformManipulatedObjs: function($super, manipulateType, endScreenCoord, explicitTransformParams)
+	doTransformManipulatedObjs: function(/*$super, */manipulateType, endScreenCoord, explicitTransformParams)
 	{
 		var endCoord = endScreenCoord;
 		var state = this.getState();
@@ -5538,7 +6217,7 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 		mol.beginUpdate();
 		try
 		{
-			var result = $super(manipulateType, endScreenCoord, explicitTransformParams);
+			var result = this.tryApplySuper('doTransformManipulatedObjs', [manipulateType, endScreenCoord, explicitTransformParams])  /* $super(manipulateType, endScreenCoord, explicitTransformParams) */;
 			//var manipulationDirectionVector = Kekule.CoordUtils.substract(endScreenCoord, startCoord);
 			this.updateAssocMarker(null, null, false);  // force repaint marker
 		}
@@ -5549,11 +6228,11 @@ Kekule.Editor.MolFlexChainIaController = Class.create(Kekule.Editor.MolFlexStruc
 		return result;
 	},
 	/** @ignore */
-	react_pointermove: function($super, e)
+	react_pointermove: function(/*$super, */e)
 	{
 		//var tStart = Date.now();
 		this._isForceReversedChainDirection = !!e.getShiftKey();
-		var result = $super(e);
+		var result = this.tryApplySuper('react_pointermove', [e])  /* $super(e) */;
 		//var tEnd = Date.now();
 		//console.log('duration', tEnd - tStart);
 		return result;
@@ -5572,9 +6251,9 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.MolFlexRingIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this.setEnableSelect(false);
 		// private
 		this._deltaDistance = null;
@@ -5609,13 +6288,13 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 		return mol? AU.clone(mol.getNodes()): [];
 	},
 	/** @ignore */
-	manipulateEnd: function($super)
+	manipulateEnd: function(/*$super*/)
 	{
 		this._clearManipulateObjInfoCache();
-		$super();
+		this.tryApplySuper('manipulateEnd')  /* $super() */;
 	},
 	/** @ignore */
-	createManipulateObjInfo: function($super, obj, objIndex, startContextCoord)
+	createManipulateObjInfo: function(/*$super, */obj, objIndex, startContextCoord)
 	{
 		// try use cached info first
 		var atomCount = this.getRepositoryItem().getRingAtomCount();
@@ -5627,7 +6306,7 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 		}
 		else  // calculate and save to cache
 		{
-			var info = $super(obj, objIndex, startContextCoord);
+			var info = this.tryApplySuper('createManipulateObjInfo', [obj, objIndex, startContextCoord])  /* $super(obj, objIndex, startContextCoord) */;
 			this._setCachedManipulateObjInfo(info, objIndex, atomCount);
 			return info;
 		}
@@ -5680,9 +6359,9 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 			return null;
 	},
 	/** @ignore */
-	addRepositoryObj: function($super, targetObj, screenCoord, ignoreUnconnectedStructCheck)
+	addRepositoryObj: function(/*$super, */targetObj, screenCoord, ignoreUnconnectedStructCheck)
 	{
-		var result = $super(targetObj, screenCoord, ignoreUnconnectedStructCheck);
+		var result = this.tryApplySuper('addRepositoryObj', [targetObj, screenCoord, ignoreUnconnectedStructCheck])  /* $super(targetObj, screenCoord, ignoreUnconnectedStructCheck) */;
 		// save bond length
 		this._deltaDistance = this._calcStepDeltaDistance();
 		//this._repObjStartingScreenCoord = screenCoord;
@@ -5690,7 +6369,7 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 		return result;
 	},
 	/** @ignore */
-	insertRepositoryObjToEditor: function($super, startingCoord, startingObj, isUpdate)
+	insertRepositoryObjToEditor: function(/*$super, */startingCoord, startingObj, isUpdate)
 	{
 		if (!isUpdate)
 		{
@@ -5702,7 +6381,7 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 			this.getRepositoryItem().setRingAtomCount(initialAtomCount);
 		}
 		this._isUpdateRepObj = isUpdate;  // a flag indicaing whether is update ring
-		var result = $super(startingCoord, startingObj);
+		var result = this.tryApplySuper('insertRepositoryObjToEditor', [startingCoord, startingObj])  /* $super(startingCoord, startingObj) */;
 
 		if (result && !isUpdate)  // really add new obj
 		{
@@ -5716,7 +6395,7 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 		return result;
 	},
 	/** @ignore */
-	updateAssocMarker: function($super, coord, props, doNotRepaint)
+	updateAssocMarker: function(/*$super, */coord, props, doNotRepaint)
 	{
 		if (!coord)
 		{
@@ -5724,7 +6403,7 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 			coord = this.getEditor().objCoordToContext(centerCoord);
 		}
 		//console.log('update marker', coord, props, doNotRepaint);
-		return $super(coord, props, doNotRepaint);
+		return this.tryApplySuper('updateAssocMarker', [coord, props, doNotRepaint])  /* $super(coord, props, doNotRepaint) */;
 	},
 	/** @private */
 	_getRingCenterAbsContextCoord: function(ring)
@@ -5783,7 +6462,7 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 		return result;
 	},
 	/** @ignore */
-	doTransformManipulatedObjs: function($super, manipulateType, endScreenCoord, explicitTransformParams)
+	doTransformManipulatedObjs: function(/*$super, */manipulateType, endScreenCoord, explicitTransformParams)
 	{
 		var endCoord = endScreenCoord;
 		var state = this.getState();
@@ -5824,7 +6503,7 @@ Kekule.Editor.MolFlexRingIaController = Class.create(Kekule.Editor.MolFlexStruct
 		mol.beginUpdate();
 		try
 		{
-			var result = $super(manipulateType, endScreenCoord, explicitTransformParams);
+			var result = this.tryApplySuper('doTransformManipulatedObjs', [manipulateType, endScreenCoord, explicitTransformParams])  /* $super(manipulateType, endScreenCoord, explicitTransformParams) */;
 			//this._updateRingAssocMarker(mol);
 			// update assoc marker and coord
 			this.updateAssocMarker(null, null, false);  // force repaint marker
@@ -5856,9 +6535,9 @@ Kekule.Editor.MolRingIaController = Class.create(Kekule.Editor.MolFlexStructureI
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.MolRingIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this.setRepositoryItem(new Kekule.Editor.MolRingRepositoryItem2D());
 		this.setEnableSelect(false);
 		this._currBondOrders = null;  // stores current bond orders after a merge, may be needed at the last step of manipulation
@@ -5888,9 +6567,9 @@ Kekule.Editor.MolRingIaController = Class.create(Kekule.Editor.MolFlexStructureI
 		return mol? AU.clone(mol.getNodes()): [];
 	},
 	/** @ignore */
-	createNodeMergeOperation: function($super, fromNode, toNode, useMergePreview)
+	createNodeMergeOperation: function(/*$super, */fromNode, toNode, useMergePreview)
 	{
-		var result = $super(fromNode, toNode, useMergePreview);
+		var result = this.tryApplySuper('createNodeMergeOperation', [fromNode, toNode, useMergePreview])  /* $super(fromNode, toNode, useMergePreview) */;
 		if (this.getIsAromatic())  // when inserting aromatic ring, double bond may need to overwrite single bond of existing structure
 		{
 			if (result && result.setMergeConnectorPropsFromTarget)
@@ -5899,19 +6578,19 @@ Kekule.Editor.MolRingIaController = Class.create(Kekule.Editor.MolFlexStructureI
 		return result;
 	},
 	/** @ignore */
-	manipulateBeforeStopping: function($super)
+	manipulateBeforeStopping: function(/*$super*/)
 	{
 		if (this._currBondOrders && this.useMergePreview())  // apply the actual bond orders to newly inserted structure, instead of the preview one
 		{
 			this._applyBondOrdersToSrcStruct(null, this._currBondOrders);
 		}
-		return $super();
+		return this.tryApplySuper('manipulateBeforeStopping')  /* $super() */;
 	},
 
 	/** @ignore */
-	_mergeOperationsChanged : function($super, mergedObjCount, targetObjs, destObjs)
+	_mergeOperationsChanged : function(/*$super, */mergedObjCount, targetObjs, destObjs)
 	{
-		$super(mergedObjCount, targetObjs, destObjs);
+		this.tryApplySuper('_mergeOperationsChanged', [mergedObjCount, targetObjs, destObjs])  /* $super(mergedObjCount, targetObjs, destObjs) */;
 		//console.log('new we have a new merge', mergedObjCount, targetObjs, destObjs);
 
 		// since a new merge is created, we have to modify the double bond position in ring
@@ -5928,9 +6607,9 @@ Kekule.Editor.MolRingIaController = Class.create(Kekule.Editor.MolFlexStructureI
 		}
 	},
 	/** @ignore */
-	createObjFromRepositoryItem: function($super, targetObj, repItem)
+	createObjFromRepositoryItem: function(/*$super, */targetObj, repItem)
 	{
-		var result = $super(targetObj, repItem);
+		var result = this.tryApplySuper('createObjFromRepositoryItem', [targetObj, repItem])  /* $super(targetObj, repItem) */;
 		this.updateRepStructureBondOrders(result.objects[0], null);  // initialize double bonds of aromatic ring
 		this._currBondOrders = null;
 		return result;
@@ -6301,13 +6980,13 @@ Kekule.Editor.PathGlyphIaController = Class.create(Kekule.Editor.RepositoryIaCon
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.PathGlyphIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		//this.setEnableLengthChangeInConstrainedMoving(true);
 	},
 	/** @ignore */
-	getDirectManipulateObjs: function($super, insertedObjs, repInsertionResult)
+	getDirectManipulateObjs: function(/*$super, */insertedObjs, repInsertionResult)
 	{
 		//return insertedObjs;
 		if (insertedObjs.length === 1)
@@ -6316,15 +6995,18 @@ Kekule.Editor.PathGlyphIaController = Class.create(Kekule.Editor.RepositoryIaCon
 			// if parent has two node (e.g., arrow), allow to move the end point of it directly
 			if (parent.getNodeAt && parent.getNodeCount)
 			{
-				if (parent.getNodeCount() === 2)
-					return [parent.getNodeAt(parent.getNodeCount() - 1)];
+				var nodeCount = parent.getNodeCount();
+				//if (nodeCount === 2)
+				//  return [parent.getNodeAt(nodeCount - 1)];
+				if (parent.getDirectManipulationTarget)
+					return parent.getDirectManipulationTarget();
 			}
 		}
 		// default
-		return $super(insertedObjs, repInsertionResult);
+		return this.tryApplySuper('getDirectManipulateObjs', [insertedObjs, repInsertionResult])  /* $super(insertedObjs, repInsertionResult) */;
 	},
 	/** @ignore */
-	getInsertedObjs: function($super)
+	getInsertedObjs: function(/*$super*/)
 	{
 		return this.getCurrRepositoryObjects();  // the whole inserted objects should be auto selected after inserting
 	}
@@ -6345,9 +7027,9 @@ Kekule.Editor.ArrowLineIaController = Class.create(Kekule.Editor.PathGlyphIaCont
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.ArrowLineIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this.setRepositoryItem(new Kekule.Editor.PathGlyphRepositoryItem2D());
 	},
 	/** @private */
@@ -6378,11 +7060,11 @@ Kekule.Editor.ArrowLineIaController = Class.create(Kekule.Editor.PathGlyphIaCont
 		return Kekule.Editor.BasicManipulationIaController.ManipulationType.MOVE;
 	},
 	/** @ignore */
-	addRepositoryObj: function($super, targetObj, screenCoord, ignoreUnconnectedStructCheck)
+	addRepositoryObj: function(/*$super, */targetObj, screenCoord, ignoreUnconnectedStructCheck)
 	{
 		// set ref length before adding new object
 		this.getRepositoryItem().setGlyphRefLength(this.getEditor().getChemSpace().getDefAutoScaleRefLength());
-		return $super(targetObj, screenCoord, ignoreUnconnectedStructCheck);
+		return this.tryApplySuper('addRepositoryObj', [targetObj, screenCoord, ignoreUnconnectedStructCheck])  /* $super(targetObj, screenCoord, ignoreUnconnectedStructCheck) */;
 	}
 });
 // register
@@ -6399,9 +7081,9 @@ Kekule.Editor.FormulaIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.FormulaIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this._operAddMol = null;  // private
 	},
 	/** @private */
@@ -6411,7 +7093,7 @@ Kekule.Editor.FormulaIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 		this.defineProp('textSetter', {'dataType': DataType.OBJECT, 'serializable': false});  // private
 	},
 	/** @private */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
 		if (obj && this.isValidMol(obj))
 			return true;
@@ -6562,25 +7244,33 @@ Kekule.Editor.FormulaIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 		{
 			var oper = new Kekule.ChemObjOperation.Modify(mol.getFormula(), {'text': text}, this.getEditor());
 		}
-		if (oper)
+
+		var editor = this.getEditor();
+		if (editor && oper)
 		{
-			oper.execute();
-
-			var editor = this.getEditor();
-			if (editor && editor.getEnableOperHistory())
+			editor.beginManipulateAndUpdateObject();
+			try
 			{
-				if (this._operAddBlock)
+				oper.execute();
+				if (editor.getEnableOperHistory())
 				{
-					var group = new Kekule.MacroOperation();
-					group.add(this._operAddBlock);
-					group.add(oper);
-					editor.pushOperation(group);
-					this._operAddBlock = null;
-				}
-				else
-					editor.pushOperation(oper);
+					if (this._operAddBlock)
+					{
+						var group = new Kekule.MacroOperation();
+						group.add(this._operAddBlock);
+						group.add(oper);
+						editor.pushOperation(group);
+						this._operAddBlock = null;
+					}
+					else
+						editor.pushOperation(oper);
 
-				this.doneInsertOrModifyBasicObjects([mol]);
+					this.doneInsertOrModifyBasicObjects([mol]);
+				}
+			}
+			finally
+			{
+				editor.endManipulateAndUpdateObject();
 			}
 		}
 
@@ -6641,7 +7331,8 @@ Kekule.Editor.FormulaIaController = Class.create(Kekule.Editor.BaseEditorIaContr
 		 style.marginLeft = -posAdjust + 'px';
 		 */
 		setter._applied = false;
-		setter.show(null, null, Kekule.Widget.ShowHideType.POPUP);
+		setter.setStandaloneOnShowHide(true);
+		setter.show(this.getEditor(), null, Kekule.Widget.ShowHideType.POPUP);
 		setter.selectAll();
 		setter.focus();
 	},
@@ -6717,9 +7408,9 @@ Kekule.Editor.ContentBlockIaController = Class.create(Kekule.Editor.BaseEditorIa
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.ContentBlockIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 	},
 	/** @private */
 	initProperties: function()
@@ -6727,7 +7418,7 @@ Kekule.Editor.ContentBlockIaController = Class.create(Kekule.Editor.BaseEditorIa
 		this.defineProp('currBlock', {'dataType': DataType.OBJECT, 'serializable': false});  // private
 	},
 	/** @private */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
 		return (obj && this.isValidBlock(obj));
 	},
@@ -6803,9 +7494,9 @@ Kekule.Editor.TextBlockIaController = Class.create(Kekule.Editor.ContentBlockIaC
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.TextBlockIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this._operAddBlock = null;  // private
 	},
 	/** @private */
@@ -6955,23 +7646,31 @@ Kekule.Editor.TextBlockIaController = Class.create(Kekule.Editor.ContentBlockIaC
 		else
 			oper = new Kekule.ChemObjOperation.Modify(block, {'text': text}, this.getEditor());
 
-		if (oper)
+		var editor = this.getEditor();
+		if (oper && editor)
 		{
-			oper.execute();
-
-			var editor = this.getEditor();
-			if (editor && editor.getEnableOperHistory())
+			editor.beginManipulateAndUpdateObject();
+			try
 			{
-				if (this._operAddBlock)
+				oper.execute();
+
+				if (editor.getEnableOperHistory())
 				{
-					var group = new Kekule.MacroOperation();
-					group.add(this._operAddBlock);
-					group.add(oper);
-					editor.pushOperation(group);
-					this._operAddBlock = null;
+					if (this._operAddBlock)
+					{
+						var group = new Kekule.MacroOperation();
+						group.add(this._operAddBlock);
+						group.add(oper);
+						editor.pushOperation(group);
+						this._operAddBlock = null;
+					}
+					else
+						editor.pushOperation(oper);
 				}
-				else
-					editor.pushOperation(oper);
+			}
+			finally
+			{
+				editor.endManipulateAndUpdateObject();
 			}
 
 			this.doneInsertOrModifyBasicObjects([block]);
@@ -7040,7 +7739,8 @@ Kekule.Editor.TextBlockIaController = Class.create(Kekule.Editor.ContentBlockIaC
 		style.marginTop = -posAdjust + 'px';
 		style.marginLeft = -posAdjust + 'px';
 		*/
-		setter.show(null, null, Kekule.Widget.ShowHideType.POPUP);
+		setter.setStandaloneOnShowHide(true);
+		setter.show(this.getEditor(), null, Kekule.Widget.ShowHideType.POPUP);
 
 		(function()
 		{
@@ -7064,9 +7764,9 @@ Kekule.Editor.ImageBlockIaController = Class.create(Kekule.Editor.ContentBlockIa
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.ImageBlockIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this._operAddBlock = null;  // private
 		this._imgProbeElem = null;
 		this._actionOpenFile = this.createOpenAction();
@@ -7201,7 +7901,7 @@ Kekule.Editor.ImageBlockIaController = Class.create(Kekule.Editor.ContentBlockIa
 					}
 					if (oper)
 					{
-						//editor.beginUpdateObject();
+						editor.beginManipulateAndUpdateObject();
 						try
 						{
 							oper.execute();
@@ -7212,7 +7912,7 @@ Kekule.Editor.ImageBlockIaController = Class.create(Kekule.Editor.ContentBlockIa
 						}
 						finally
 						{
-							//editor.endUpdateObject();
+							editor.endManipulateAndUpdateObject();
 						}
 					}
 				}).defer();  // execute later, get accurate image size
@@ -7257,9 +7957,9 @@ Kekule.Editor.AttachedMarkerIaController = Class.create(Kekule.Editor.BaseEditor
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.AttachedMarkerIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 	},
 	/** @private */
 	initProperties: function()
@@ -7278,7 +7978,7 @@ Kekule.Editor.AttachedMarkerIaController = Class.create(Kekule.Editor.BaseEditor
 	},
 
 	/** @ignore */
-	canInteractWithObj: function($super, obj)
+	canInteractWithObj: function(/*$super, */obj)
 	{
 		return this.isValidTarget(obj);
 	},
@@ -7387,9 +8087,9 @@ Kekule.Editor.MolNodeChargeIaController = Class.create(Kekule.Editor.AttachedMar
 	/** @private */
 	CLASS_NAME: 'Kekule.Editor.MolNodeChargeIaController',
 	/** @construct */
-	initialize: function($super, editor)
+	initialize: function(/*$super, */editor)
 	{
-		$super(editor);
+		this.tryApplySuper('initialize', [editor])  /* $super(editor) */;
 		this.setChargeInc(1);  // default is +1
 	},
 	/** @private */
@@ -7400,9 +8100,9 @@ Kekule.Editor.MolNodeChargeIaController = Class.create(Kekule.Editor.AttachedMar
 		this.defineProp('radical', {'dataType': DataType.INT, 'serializable': false});
 		this.defineProp('currNode', {'dataType': DataType.OBJECT, 'serializable': false});  // private
 	},
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
 		this.setTargetClass(Kekule.ChemStructureNode);
 	},
 

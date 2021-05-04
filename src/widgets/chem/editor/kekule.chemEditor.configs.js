@@ -41,14 +41,16 @@ Kekule.Editor.BaseEditorConfigs = Class.create(Kekule.ChemWidget.ChemObjDisplaye
 		this.addConfigProp('uiMarkerConfigs', 'Kekule.EditorConfigs.UiMarkerConfigs');
 		this.addConfigProp('interactionConfigs', 'Kekule.EditorConfigs.InteractionConfigs');
 		this.addConfigProp('structureConfigs', 'Kekule.Editor.StructureConfigs');
+		this.addConfigProp('hotKeyConfigs', 'Kekule.Editor.HotKeyConfigs');
 	},
 	/** @private */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
 		this.setPropStoreFieldValue('uiMarkerConfigs', new Kekule.Editor.UiMarkerConfigs());
 		this.setPropStoreFieldValue('interactionConfigs', new Kekule.Editor.InteractionConfigs());
 		this.setPropStoreFieldValue('structureConfigs', new Kekule.Editor.StructureConfigs());
+		this.setPropStoreFieldValue('hotKeyConfigs', new Kekule.Editor.HotKeyConfigs());
 	}
 });
 
@@ -71,9 +73,9 @@ Kekule.Editor.ChemSpaceEditorConfigs = Class.create(Kekule.Editor.BaseEditorConf
 		this.addConfigProp('styleSetterConfigs', 'Kekule.Editor.StyleSetterConfigs', undefined, {'scope': PS.PUBLIC});
 	},
 	/** @private */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
 		this.setPropStoreFieldValue('chemSpaceConfigs', new Kekule.Editor.ChemSpaceConfigs());
 		this.setPropStoreFieldValue('styleSetterConfigs', new Kekule.Editor.StyleSetterConfigs());
 	}
@@ -87,6 +89,8 @@ Kekule.ClassUtils.makeSingleton(Kekule.Editor.ChemSpaceEditorConfigs);
  *
  * @property {Float} editorInitialZoom Initial zoom level of chem editor.
  * @property {Bool} scrollToObjAfterLoading Whether automatically scroll to the newly loaded chem object in editor.
+ * @property {Bool} autoExpandClientSizeAfterLoading Whether automatically enlarge the editor size to display all chem objects after loading.
+ * @property {Bool} autoExpandClientSizeAfterManipulation Whether automatically enlarge the editor size to display all chem objects after manipulating.
  * @property {Bool} enableTrackOnNearest If true, hot track or selection will focus on object nearest to coord,
  *   otherwise, focus on topmost object around coord.
  * @property {Bool} enableHotTrack Whether highlighting objects under mouse when mouse moves over editor.
@@ -106,6 +110,11 @@ Kekule.ClassUtils.makeSingleton(Kekule.Editor.ChemSpaceEditorConfigs);
  * @property {Bool} enablePartialAreaSelecting If this value is true, when drag a selecting rubber band, object partial in the band will also be selected.
  * @property {Bool} enableMergePreview When set to true, a preview of merge (instead of actual merge) will be displayed during manipulation of chem objects.
  *   Set this value to true will improve the performance of chem editor.
+ * @property {Bool} enableMagneticMerge Whether nearing node will be merged when moving their position.
+ * @property {Bool} enableNodeMerge Whether node merging is allowed.
+ * @property {Bool} enableNeighborNodeMerge Whether neighboring node merging is allowed.
+ * @property {Bool} enableConnectorMerge Whether connector merging is allowed.
+ * @property {Bool} enableStructFragmentMerge Whether node or connector merging between different molecule is allowed.
  * @property {Bool} followPointerCoordOnDirectManipulatingSingleObj If true, the new coord of manipulating object will be set directly by the position of pointer (rather than the delta coord to the original position).
  * @property {Bool} enableOffSelectionManipulation If true, holding pointer down outside selection region for a while
  *   will enter the manipulation state to move the selected objects.
@@ -113,6 +122,7 @@ Kekule.ClassUtils.makeSingleton(Kekule.Editor.ChemSpaceEditorConfigs);
  *   invoker off selection manipulation.
  * @property {Bool} enableGestureManipulation Whether using pinch/rotate gesture to manipulate selected objects is allowed.
  * @property {Bool} enableGestureZoomOnEditor Whether using pinch gesture change the zoom level of editor is allowed.
+ * @property {Bool} enableHotKey Whether using hot key in editor is allowed.
  * @property {Float} unmovePointerDistanceThreshold When moving less than this distance, pointer will be regarded as still.
  * @property {Int} atomSetterFontSize Font size of atom setter widget.
  * @property {Bool} allowUnknownAtomSymbol If true, input unknown text in atom setter will add new pseudo atom.
@@ -139,6 +149,8 @@ Kekule.Editor.InteractionConfigs = Class.create(Kekule.AbstractConfigs,
 		this.addBoolConfigProp('enableHotTrack', true);
 
 		this.addBoolConfigProp('scrollToObjAfterLoading', true);
+		this.addBoolConfigProp('autoExpandClientSizeAfterLoading', true);
+		this.addBoolConfigProp('autoExpandClientSizeAfterManipulation', false);
 		this.addBoolConfigProp('autoSelectNewlyInsertedObjects', !true);
 		this.addBoolConfigProp('autoSelectNewlyInsertedObjectsOnTouch', true);
 
@@ -172,10 +184,18 @@ Kekule.Editor.InteractionConfigs = Class.create(Kekule.AbstractConfigs,
 		this.addFloatConfigProp('constrainedRotateStep', degreeStep * 7.5);  // 7.5 degree
 		this.addIntConfigProp('rotationLocationPointDistanceThreshold', 10);
 		this.addIntConfigProp('directedMoveDistanceThreshold', 10);
+
 		this.addBoolConfigProp('enableMergePreview', true);
+		this.addBoolConfigProp('enableMagneticMerge', true);
+		this.addBoolConfigProp('enableNodeMerge', true);
+		this.addBoolConfigProp('enableNeighborNodeMerge', true);
+		this.addBoolConfigProp('enableConnectorMerge', true);
+		this.addBoolConfigProp('enableStructFragmentMerge', true);
 
 		this.addBoolConfigProp('enableGestureManipulation', true);
 		this.addBoolConfigProp('enableGestureZoomOnEditor', true);
+
+		this.addBoolConfigProp('enableHotKey', true);
 
 		this.addIntConfigProp('clonedObjectScreenOffset', 10);
 
@@ -196,9 +216,9 @@ Kekule.Editor.InteractionConfigs = Class.create(Kekule.AbstractConfigs,
 		this.addFloatConfigProp('editorInitialZoom', 1.5);
 	},
 	/** @ignore */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
 		this.setTrackOptimizationDistanceConstraints([0.5, 1, 3, 4, 5]);
 	}
 });
@@ -267,6 +287,37 @@ Kekule.Editor.UiMarkerConfigs = Class.create(Kekule.AbstractConfigs,
 		this.addFloatConfigProp('trackMarkerStrokeWidth', 2);
 		this.addStrConfigProp('trackMarkerStrokeDash', false);
 		this.addFloatConfigProp('trackMarkerOpacity', 0.5);
+
+		this.addHashConfigProp('issueCheckMarkerColors', {
+			'error': {
+				'strokeColor': '#FF0000',
+				'fillColor': null,
+				'activeStrokeColor': '#FF0000',
+				'activeFillColor': '#FF6666'
+			},
+			'warning': {
+				'strokeColor': '#f1a200',
+				'fillColor': null,
+				'activeStrokeColor': '#f1a200',
+				'activeFillColor': '#ffdb15'
+			},
+			'note': {
+				'strokeColor': '#00b0f0',
+				'fillColor': null,
+				'activeStrokeColor': '#007ca8',
+				'activeFillColor': '#00b0f0'
+			},
+			'log': {
+				'strokeColor': '#00b0f0',
+				'fillColor': null,
+				'activeStrokeColor': '#007ca8',
+				'activeFillColor': '#00b0f0'
+			}
+		});
+		this.addFloatConfigProp('issueCheckMarkerStrokeWidth', 2);
+		this.addFloatConfigProp('issueCheckActiveMarkerStrokeWidth', 2);
+		this.addStrConfigProp('issueCheckMarkerOpacity', 0.3);
+		this.addStrConfigProp('issueCheckActiveMarkerOpacity', 0.6);
 
 		this.addStrConfigProp('flexStructureAssocMarkerColor', '#0000AA');
 		this.addFloatConfigProp('flexStructureAssocMarkerOpacity', 0.5);
@@ -364,9 +415,9 @@ Kekule.Editor.StructureConfigs = Class.create(Kekule.AbstractConfigs,
 		});
 	},
 	/** @private */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
 
 		var degreeStep = Math.PI / 180;
 
@@ -453,6 +504,8 @@ Kekule.Editor.StructureConfigs = Class.create(Kekule.AbstractConfigs,
  *
  * @property {Hash} defScreenSize2D Default 2D screen size of space, based on px.
  * @property {Hash} defScreenSize3D Default 3D size of space.
+ * @property {Hash} autoExpandScreenSize2D The 2D delta used when auto expanding the space size.
+ * @property {Hash} autoExpandScreenSize3D The 3D delta used when auto expanding the space size.
  * @property {Num} defPadding Padding on top when adding an unpositioned object to container chem space.
  */
 Kekule.Editor.ChemSpaceConfigs = Class.create(Kekule.AbstractConfigs,
@@ -465,14 +518,18 @@ Kekule.Editor.ChemSpaceConfigs = Class.create(Kekule.AbstractConfigs,
 	{
 		this.addHashConfigProp('defScreenSize2D');
 		this.addHashConfigProp('defScreenSize3D');
+		this.addHashConfigProp('autoExpandScreenSize2D');
+		this.addHashConfigProp('autoExpandScreenSize3D');
 		this.addNumConfigProp('defPadding', 50);
 	},
 	/** @private */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
 		this.setDefScreenSize2D({'x': 900, 'y': 1500});
 		this.setDefScreenSize3D({'x': 600, 'y': 600, 'z': 600});
+		this.setAutoExpandScreenSize2D({'x': 200, 'y': 200});
+		this.setAutoExpandScreenSize3D({'x': 100, 'y': 100, 'z': 100});
 	}
 });
 
@@ -496,9 +553,9 @@ Kekule.Editor.StyleSetterConfigs = Class.create(Kekule.AbstractConfigs,
 		this.defineProp('listedFontNames', {'dataType': DataType.ARRAY});
 	},
 	/** @private */
-	initPropValues: function($super)
+	initPropValues: function(/*$super*/)
 	{
-		$super();
+		this.tryApplySuper('initPropValues')  /* $super() */;
 		this.setListedFontSizes([8,9,10,11,12,14,16,18,20,24,28,32,36,40,44,48,54,60,66,72,80,88,96]);
 		/*
 		this.setListedFontNames([
@@ -516,6 +573,85 @@ Kekule.Editor.StyleSetterConfigs = Class.create(Kekule.AbstractConfigs,
 		]);
 		*/
 		this.setListedFontNames(Kekule.Widget.FontEnumerator.getAvailableFontFamilies());
+	}
+});
+
+/**
+ * Configs of hot key settings of editor.
+ * @class
+ * @augments Kekule.AbstractConfigs
+ *
+ * @property {Array} hotKeys Hot keys to do quick action.
+ *   Each item in array is a hash {key: string, action: string},
+ */
+Kekule.Editor.HotKeyConfigs = Class.create(Kekule.AbstractConfigs,
+/** @lends Kekule.Editor.HotKeyConfigs# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.Editor.HotKeyConfigs',
+	/** @private */
+	initProperties: function()
+	{
+		this.defineProp('hotKeys', {'dataType': DataType.ARRAY});
+	},
+	/** @private */
+	initPropValues: function(/*$super*/)
+	{
+		var CWN = Kekule.ChemWidget.ComponentWidgetNames;
+		// debug, fetch default ones
+		this.tryApplySuper('initPropValues');
+		this.setHotKeys([
+			// node modification
+			{'key': 'c', 'action': 'atom_C'},
+			{'key': 'h', 'action': 'atom_H'},
+			{'key': 'o', 'action': 'atom_O'},
+			{'key': 'n', 'action': 'atom_N'},
+			{'key': 'p', 'action': 'atom_P'},
+			{'key': 's', 'action': 'atom_S'},
+			{'key': 'f', 'action': 'atom_F'},
+			{'key': 'Shift+C', 'action': 'atom_Cl'},
+			{'key': 'b', 'action': 'atom_Br'},
+			{'key': 'i', 'action': 'atom_I'},
+			{'key': 'Shift+B', 'action': 'atom_B'},
+			{'key': 'k', 'action': 'atom_K'},
+			{'key': 'Shift+N', 'action': 'atom_Na'},
+			{'key': 'd', 'action': 'atom_D'},
+
+			{'key': 'm', 'action': 'subgroup_methyl'},
+			{'key': 'e', 'action': 'subgroup_ethyl'},
+			{'key': 't', 'action': 'subgroup_TMS'},
+			{'key': 'Shift+P', 'action': 'subgroup_phenyl'},
+			{'key': 'Shift+T', 'action': 'subgroup_OTs'},
+			{'key': 'Shift+E', 'action': 'subgroup_COOCH3'},
+
+			{'key': 'a', 'action': 'atom_any'},
+			{'key': 'q', 'action': 'atom_hetero'},
+			{'key': 'l', 'action': 'atom_variable'},
+			{'key': 'r', 'action': 'subgroup_R'},
+
+			// connector modification
+			{'key': '1', 'action': 'bond_single'},
+			{'key': '2', 'action': 'bond_double'},
+			{'key': '3', 'action': 'bond_triple'},
+			{'key': '4', 'action': 'bond_quad'},
+			{'key': 'b', 'action': 'bond_closer'},
+			{'key': 'w', 'action': 'bond_up'},
+			{'key': 'h', 'action': 'bond_down'},
+			{'key': 'Shift+W', 'action': 'bond_down'},
+			{'key': 'y', 'action': 'bond_upOrDown'},
+
+			// general
+			{'key': 'Ctrl+A', 'action': CWN.selectAll},
+			{'key': 'Ctrl+C', 'action': CWN.copy},
+			{'key': 'Ctrl+X', 'action': CWN.cut},
+			{'key': 'Ctrl+V', 'action': CWN.paste},
+			{'key': 'Ctrl+Z', 'action': CWN.undo},
+			{'key': 'Ctrl+Shift+Z', 'action': CWN.redo},
+			{'key': '+', 'action': CWN.zoomIn},
+			{'key': '-', 'action': CWN.zoomOut},
+			{'key': 'Delete', 'action': CWN.eraseSelection},
+			{'key': 'Backspace', 'action': CWN.eraseSelection}
+		]);
 	}
 });
 
