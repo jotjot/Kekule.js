@@ -16,7 +16,16 @@
   <link rel="stylesheet" type="text/css" href="https://unpkg.com/kekule/dist/themes/default/kekule.css" />
   -->
 
-  <script src="../../../src/kekule.js?min=false&locals=en,zh&language=en&modules=chemWidget,algorithm,calculation,openbabel,indigo"></script>
+  <script>
+    var _kekule_environment_ = {
+      'kekule.language': 'zh-CN'
+    }
+  </script>
+  <!--
+  <script src="../../../dist/kekule.min.js?locals=en,zh&language=en&modules=chemWidget,algorithm,calculation,openbabel,indigo"></script>
+  -->
+<!--  <script src="../../../src/kekule.js?min=false&locals=en,zh&language=zh&modules=chemWidget,spectroscopy,algorithm,calculation,openbabel,indigo"></script>-->
+  <script src="../../../src/kekule.js?min=false&modules=chemWidget,spectroscopy,algorithm,calculation,openbabel,indigo"></script>
   <link rel="stylesheet" type="text/css" href="../../../src/widgets/themes/default/kekule.css" />
 
 
@@ -166,8 +175,12 @@
 	    });
 
       chemEditorUi.on('selectionChange', function(e){
-        console.log('selectionChange', chemEditorUi.getSelection());
+        console.log('selectionChange', e, chemEditorUi.getSelection());
       });
+
+      // chemEditorUi.on('eventInvoke', function(e){
+      //   console.log('eventInvoke', e.event);
+      // });
 
       /*
       chemEditorUi.on('hoverOnObjs', function(e){
@@ -322,5 +335,8 @@
   <div id="chemEditorUi" style="width:800px;height:400px;transform1:scale(0.8) skewX(20deg);transform-origin:0 0" data-resizable="true"></div>
   <div id="operHis" style="width:400px;height:600px;float:right"></div>
   <div id="chemViewer" style="border: 1px solid #ccc;float:right" data-widget="Kekule.ChemWidget.Viewer2D"></div>
+  <div>
+    <input type="text" />
+  </div>
 </body>
 </html>

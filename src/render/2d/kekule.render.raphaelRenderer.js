@@ -277,6 +277,42 @@ Kekule.Render.RaphaelRendererBridge = Class.create(Kekule.Render.Abstract2DDrawB
 			elem.attr('stroke-linecap', options.lineCap);
 		if (options.lineJoin)
 			elem.attr('stroke-linejoin', options.lineJoin);
+
+		if ((options.transforms && options.transforms.length) || options.transform)
+		{
+			this.setTransformSeq(elem, options.transforms || [options.transform]);
+		}
+	},
+	/** @private */
+	setTransformSeq: function(elem, transformSeq)
+	{
+		for (var i = 0, l = transformSeq.length; i < l; ++i)
+		{
+			var transform = Object.extend({'rotateAngle': transformSeq[i].rotate}, transformSeq[i]);
+			this.setTransform(elem, transform);
+		}
+	},
+	/** @private */
+	setTransform: function(elem, transform)
+	{
+		var center = transform.center || {'x': 0, 'y': 0};
+		// rotate
+		if (transform.rotateAngle)
+		{
+			elem.rotate(transform.rotateAngle / Math.PI * 180, center.x, center.y);
+		}
+		// scale
+		var scaleX = Kekule.oneOf(transform.scaleX, transform.scale, 1);
+		var scaleY = Kekule.oneOf(transform.scaleY, transform.scale, 1);
+		if (scaleX !== 1 || scaleY !== 1)
+		{
+			elem.scale(scaleX, scaleY, center.x, center.y);
+		}
+		// translate
+		if (transform.translateX || transform.translateY)
+		{
+			elem.translate(transform.translateX || 0, transform.translateY || 0);
+		}
 	},
 
 	/** @private */
@@ -448,6 +484,7 @@ Kekule.Render.RaphaelRendererBridge = Class.create(Kekule.Render.Abstract2DDrawB
 /**
  * Check if current environment supports Raphael (SVG or VML).
  * @returns {Bool}
+ * @deprecated
  */
 Kekule.Render.RaphaelRendererBridge.isSupported = function()
 {
@@ -458,6 +495,23 @@ Kekule.Render.RaphaelRendererBridge.isSupported = function()
 	}
 	return result;
 };
+/**
+ * Returns the availability information of Raphael renderer.
+ * @returns {Hash}
+ */
+Kekule.Render.RaphaelRendererBridge.getAvailabilityInformation = function()
+{
+	var raphaelAvailable = !!Kekule.$jsRoot.Raphael;
+	var raphaelRenderingAvailable = !!(raphaelAvailable && (Kekule.$jsRoot.Raphael.svg || Kekule.$jsRoot.Raphael.vml));
+	return {
+		'available': !!raphaelRenderingAvailable,
+		'message': !raphaelAvailable? Kekule.$L('ErrorMsg.RAPHAEL_LIB_NOT_UNAVAILABLE'):
+			!raphaelRenderingAvailable? Kekule.$L('ErrorMsg.RAPHAEL_SVG_VML_UNAVAILABLE'):
+			null
+	}
+};
+
+Kekule.Render.DrawBridge2DMananger.register(Kekule.Render.RaphaelRendererBridge, 10);
 
 //Kekule.ClassUtils.makeSingleton(Kekule.Render.RaphaelRendererBridge);
 
@@ -568,7 +622,7 @@ var _raphaelRegistered = function()
 
 var _raphaelUnregistered = function()
 {
-	Kekule.Render.DrawBridge2DMananger.unregister(Kekule.Render.RaphaelRendererBridge);
+	// Kekule.Render.DrawBridge2DMananger.unregister(Kekule.Render.RaphaelRendererBridge);
 };
 
 var _registerRaphael = function(raphaelRoot)

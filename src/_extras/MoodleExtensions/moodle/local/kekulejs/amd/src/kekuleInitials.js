@@ -1,4 +1,4 @@
-define('local_kekulejs/kekuleInitials', ['kekule'], function(){
+define(/*'local_kekulejs/kekuleInitials',*/ ['three', 'kekule'], function(){
 
 	function init()
 	{
@@ -99,6 +99,12 @@ define('local_kekulejs/kekuleInitials', ['kekule'], function(){
 					allowedObjModifierCategories: [EMC.GENERAL, EMC.CHEM_STRUCTURE]  // only all chem structure modifiers
 				});
 			}
+		}
+
+		if (Kekule.globalOptions && Kekule.Editor.MolBondIaController)
+		{
+			// change the default behavior of MolBondIaController in editor to similar to ChemDraw
+			Kekule.globalOptions.add('chemWidget.editor.bondManipulation.autoSwitchBondOrder', true);
 		}
 	}
 

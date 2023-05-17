@@ -41,7 +41,7 @@ widget in JavaScript code:
 Currently there are dozens of widgets shipped with the toolkit. They are divided
 into two groups: common widgets and chem widgets.
 
-Common Widgets [#moduleWidget]_
+Common Widgets
 -------------------------------
 
 These widgets are general-purposed and usually not directly related to chemoinformatics,
@@ -61,7 +61,7 @@ introduce them in details. You can check the
   ===========================   ===========
 
 
-Chem Widgets [#moduleChemWidget]_
+Chem Widgets
 ---------------------------------
 
 The most useful chem widgets in the toolkit is *composer*, *viewer* and *periodic table*.
@@ -83,18 +83,3 @@ The periodic table widget is relatively simple to use,
 `this online demo <http://partridgejiang.github.io/Kekule.js/demos/items/periodicTable/periodicTable.html>`_
 illustrates functions of it. Viewer and composer are much powerful and they will be explored
 further in the following parts of this tutorial.
-
-
-.. [#moduleWidget] To use common widgets, widget module must be loaded and
-  additional style sheet also need to be linked in HTML page, e.g.:
-.. code-block:: html
-
-	<script src="kekule.js?module=widget"></script>
-	<link rel="stylesheet" type="text/css" href="themes/default/kekule.css" />
-
-.. [#moduleChemWidget] To use chem widgets, chem widget module must be loaded and
-  additional style sheet also need to be linked in HTML page, e.g.:
-.. code-block:: html
-
-	<script src="kekule.js?module=chemWidget"></script>
-	<link rel="stylesheet" type="text/css" href="themes/default/kekule.css" />

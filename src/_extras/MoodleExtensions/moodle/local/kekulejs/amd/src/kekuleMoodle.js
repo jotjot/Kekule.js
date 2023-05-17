@@ -1,4 +1,4 @@
-define('local_kekulejs/kekuleMoodle', ['kekule', 'local_kekulejs/kekuleInitials'], function(){
+define(/*'local_kekulejs/kekuleMoodle',*/ ['kekule', 'local_kekulejs/kekuleInitials'], function(){
 
 	function init()
 	{
@@ -52,7 +52,7 @@ define('local_kekulejs/kekuleMoodle', ['kekule', 'local_kekulejs/kekuleInitials'
 								{
 									var value = jsonObj[attrib];
 									targetElem.setAttribute(attrib, value);
-									console.log('set attrib', attrib, value);
+									//console.log('set attrib', attrib, value);
 								}
 							}
 							Kekule.HtmlElementUtils.removeClass(elem, KekuleMoodle.WidgetDataWrapper.WRAPPER_HTML_CLASS);

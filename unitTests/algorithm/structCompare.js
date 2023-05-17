@@ -11,6 +11,9 @@ describe('Test of structure comparison', function(){
 		'compTest3_1.kcj', 'compTest3_2.kcj',
 		'compTest4_1.mol', 'compTest4_2.mol',
 		'compTestFischer1_1.kcj', 'compTestFischer1_2.kcj',
+		'compTest0Radical_1.kcj', 'compTest0Radical_2.kcj',
+		'compTestHarworthWithExplicitH_1.kcj', 'compTestHarworthWithExplicitH_2.kcj', 'compTestHarworthWithExplicitH_3.kcj',
+		'compTestHarworthWithImplicitH.kcj',
 		'chainStereoCenterWithH01.mol', 'chainStereoCenterWithH02.mol',
 		'chainStereoCenterWithH01_01.mol',
 		'wedgeWithH01_1.mol', 'wedgeWithH01_2.mol',
@@ -73,6 +76,10 @@ describe('Test of structure comparison', function(){
 		'compTestFischer1_1.kcj', 'compTestFischer1_2.kcj', null,
 		true
 	);
+	testComparison('Comparison base on abormal radical mol pair 1',
+		'compTest0Radical_1.kcj', 'compTest0Radical_2.kcj', null,
+		true
+	);
 	testComparison('Comparison on stereo centers with H atom -1',
 		'chainStereoCenterWithH01.mol', 'chainStereoCenterWithH02.mol', null,
 		false
@@ -92,5 +99,17 @@ describe('Test of structure comparison', function(){
 	testComparison('Comparison base on wedge bonds with H - 3',
 			'wedgeWithH03_1.mol', 'wedgeWithH03_2.mol', null,
 			true
+	);
+	testComparison('Comparison base on Harworth ring with H - 1',
+		'compTestHarworthWithExplicitH_1.kcj', 'compTestHarworthWithExplicitH_2.kcj', null,
+		true
+	);
+	testComparison('Comparison base on Harworth ring with H - 2',
+		'compTestHarworthWithExplicitH_1.kcj', 'compTestHarworthWithExplicitH_3.kcj', null,
+		true
+	);
+	testComparison('Comparison base on Harworth ring with H - 3',
+		'compTestHarworthWithExplicitH_1.kcj', 'compTestHarworthWithImplicitH.kcj', null,
+		true
 	);
 });

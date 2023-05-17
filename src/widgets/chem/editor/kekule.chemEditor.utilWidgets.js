@@ -622,7 +622,7 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 				if (!result && !this._valueSetBySelectPanel)
 				{
 					var text = this.getNodeInputBox().getValue();
-					result = this._getValueFromDirectInputText(text);
+					result = this._getValueFromDirectInputText(text) || result;
 				}
 				return result;
 			}
@@ -877,6 +877,9 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 	/** @private */
 	_getValueFromDirectInputText: function(text)
 	{
+		if (!text)
+			return null;
+
 		var nodeClass, modifiedProps, newNode, repItem, isUnknownPAtom, inputHydrogenCount;
 
 		var nonAtomInfo = this._getNonAtomInfo(text);
@@ -955,8 +958,12 @@ Kekule.ChemWidget.StructureNodeSetter = Class.create(Kekule.Widget.BaseWidget,
 		if (inputBox.getIsDirty())
 		{
 			var text = inputBox.getValue();
-			var data = this._getValueFromDirectInputText(text);
-			this.doValueChanged(data);
+			if (text)
+			{
+				var data = this._getValueFromDirectInputText(text);
+				if (data)  // data may be null when text is empty
+					this.doValueChanged(data);
+			}
 			inputBox.setIsDirty(false);
 		}
 		else  // actually no changes
@@ -1842,7 +1849,8 @@ Kekule.ChemWidget.GlyphPathArrowSettingPanel = Class.create(Kekule.Widget.Panel,
 
 		//this._continuousArrowSidesButtonGroup.setDisplayed(!!this.getShowContinousArrowSidesSetter());
 
-		return result.concat(styleGroup)/*.concat(continousArrowSideSetter)*/.concat(sizeGroup);
+		//return result.concat(styleGroup)/*.concat(continousArrowSideSetter)*/.concat(sizeGroup);
+		return result.concat(styleSectionElem).concat(sizeSectionElem);
 	},
 	/** @private */
 	doCreateSectionElem: function(doc, parentElem)
@@ -2448,7 +2456,8 @@ Kekule.ChemWidget.GlyphPathLineSettingPanel = Class.create(Kekule.Widget.Panel,
 		this._lineGapInput = sec2.widget;
 		this._updateLineGapInput();
 
-		return result.concat([sec1, sec2]);
+		//return result.concat([sec1, sec2]);
+		return result.concat([sec1.elem, sec2.elem]);
 	},
 	/** @private */
 	doCreateNumInputSection: function(doc, parentElem, caption)

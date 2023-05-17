@@ -22,23 +22,28 @@ var wrapWidgetConfigs = [
 	{'widgetClassName': 'Kekule.ChemWidget.Viewer', 'htmlTagName': 'kekule-viewer'},
 	{'widgetClassName': 'Kekule.ChemWidget.Viewer2D', 'htmlTagName': 'kekule-viewer2d'},
 	{'widgetClassName': 'Kekule.ChemWidget.Viewer3D', 'htmlTagName': 'kekule-viewer3d'},
+	{'widgetClassName': 'Kekule.ChemWidget.SpectrumInspector', 'htmlTagName': 'kekule-spectrum-inspector'},
 	{'widgetClassName': 'Kekule.ChemWidget.ChemObjInserter', 'htmlTagName': 'kekule-chem-obj-inserter'},
+	{'widgetClassName': 'Kekule.ChemWidget.SpectrumObjInserter', 'htmlTagName': 'kekule-spectrum-obj-inserter'},
 	{'widgetClassName': 'Kekule.Editor.Composer', 'htmlTagName': 'kekule-composer'}
 ];
 
 function wrapWidgets()
 {
-	var compNamespace = Kekule.WebComponent;
-	for (var i = 0, l = wrapWidgetConfigs.length; i < l; ++i)
+	if (Kekule.WebComponent && Kekule.WebComponent.Utils)
 	{
-		var config = wrapWidgetConfigs[i];
-		var widgetClass = Object.getCascadeFieldValue(config.widgetClassName, Kekule.$jsRoot);
-		var htmlTagName = config.htmlTagName;
-		if (widgetClass && htmlTagName)  // do wrap
+		var compNamespace = Kekule.WebComponent;
+		for (var i = 0, l = wrapWidgetConfigs.length; i < l; ++i)
 		{
-			var widgetShortName = Kekule.ClassUtils.getLastClassName(config.widgetClassName);
-			var wrapper = Kekule.WebComponent.Utils.wrapWidget(widgetClass, htmlTagName);
-			compNamespace[widgetShortName] = wrapper;  // add to namespace
+			var config = wrapWidgetConfigs[i];
+			var widgetClass = Object.getCascadeFieldValue(config.widgetClassName, Kekule.$jsRoot);
+			var htmlTagName = config.htmlTagName;
+			if (widgetClass && htmlTagName)  // do wrap
+			{
+				var widgetShortName = Kekule.ClassUtils.getLastClassName(config.widgetClassName);
+				var wrapper = Kekule.WebComponent.Utils.wrapWidget(widgetClass, htmlTagName);
+				compNamespace[widgetShortName] = wrapper;  // add to namespace
+			}
 		}
 	}
 }

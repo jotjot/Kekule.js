@@ -20,6 +20,11 @@
 var AU = Kekule.ArrayUtils;
 var EU = Kekule.HtmlElementUtils;
 
+function _isNativePointerEventEnabled()
+{
+	return !Kekule.globalOptions.widget.events.forceSimulatePointerEvent && Kekule.BrowserFeature.pointerEvent;
+}
+
 /**
  * Enumeration of predefined widget html element tag names.
  * @ignore
@@ -1066,6 +1071,11 @@ Kekule.Widget.BaseWidget = Class.create(ObjectEx,
 				if (elem)
 				{
 					// TODO: currently restrict focus element to form controls, avoid normal element IE focused on auto scrolling to top-left
+					var doc = this.getDocument();
+					if (value && doc.activeElement && doc.activeElement !== elem && doc.activeElement.blur)  // blur old active element before focusing this one
+					{
+						doc.activeElement.blur();
+					}
 					if (elem.focus && value && Kekule.HtmlElementUtils.isFormCtrlElement(elem))
 						elem.focus();
 					if (elem.blur && (!value))
@@ -3470,7 +3480,14 @@ Kekule.Widget.BaseWidget = Class.create(ObjectEx,
 	/** @private */
 	_touchActionNoneTouchStartHandler: function(e)
 	{
-		e.preventDefault();
+		try
+		{
+			e.preventDefault();
+		}
+		catch(e)  // avoid exception throw in Chrome
+		{
+
+		}
 	},
 
 	/**
@@ -3992,7 +4009,7 @@ Kekule.Widget.BaseWidget = Class.create(ObjectEx,
 			if (controller)
 			{
 				if (eventCategory === 'hammer')
-					handled = controller.handerGestureEvent(e);
+					handled = controller.handleGestureEvent(e);
 				else
 					handled = controller.handleUiEvent(e);
 			}
@@ -5093,7 +5110,7 @@ Kekule.Widget.BaseEventsReceiver = Class.create(ObjectEx,
 	initialize: function(/*$super, */doc, eventRootObj)
 	{
 		this._document = doc || Kekule.$jsRoot.document;
-		this._eventRootObj = eventRootObj || this._document.documentElement;
+		this._eventRootObj = eventRootObj || (this._document && this._document.documentElement);
 
 		this.reactUiEventBind = this.reactUiEvent.bind(this);
 		this.reactDomNodeInsertEventBind = this.reactDomNodeInsertEvent.bind(this);
@@ -5378,7 +5395,7 @@ Kekule.Widget.GlobalManager = Class.create(Kekule.Widget.BaseEventsReceiver,
 		*/
 		//Kekule.X.domReady(this.domReadyInit.bind(this), this._document);
 
-		this.tryApplySuper('initialize', [this._document, this._document.documentElement])  /* $super(this._document, this._document.documentElement) */;
+		this.tryApplySuper('initialize', [this._document, this._document && this._document.documentElement])  /* $super(this._document, this._document.documentElement) */;
 	},
 	/** @ignore */
 	finalize: function(/*$super*/)
@@ -5416,8 +5433,26 @@ Kekule.Widget.GlobalManager = Class.create(Kekule.Widget.BaseEventsReceiver,
 		// private, record current active and focused widget
 		// at one time, only one widget can be in those states
 		this.defineProp('currHoverWidget', {'dataType': 'Kekule.Widget.BaseWidget', 'serializable': false});
-		this.defineProp('currActiveWidget', {'dataType': 'Kekule.Widget.BaseWidget', 'serializable': false});
-		this.defineProp('currFocusedWidget', {'dataType': 'Kekule.Widget.BaseWidget', 'serializable': false});
+		this.defineProp('currActiveWidget', {'dataType': 'Kekule.Widget.BaseWidget', 'serializable': false,
+			'getter': function()
+			{
+				var result = this.getPropStoreFieldValue('currFocusedWidget');
+				if (result && result.isShown && result.isShown())
+					return result;
+				else
+					return null;
+			}
+		});
+		this.defineProp('currFocusedWidget', {'dataType': 'Kekule.Widget.BaseWidget', 'serializable': false,
+			'getter': function()
+			{
+				var result = this.getPropStoreFieldValue('currFocusedWidget');
+				if (result && result.isShown && result.isShown())
+					return result;
+				else
+					return null;
+			}
+		});
 		//this.defineProp('currHoverWidget', {'dataType': 'Kekule.Widget.BaseWidget', 'serializable': false});
 
 
@@ -6145,7 +6180,8 @@ Kekule.Widget.GlobalManager = Class.create(Kekule.Widget.BaseEventsReceiver,
 			targetWidget = this.getBelongedResponsiveWidget(elem);
 
 			// if target widget is not set and the event is related to key, then send it to current focused widget
-			if (!targetWidget && this.isKeyEvent(evType))
+			if (!targetWidget && this.isKeyEvent(evType)
+				&& elem === elem.ownerDocument.body)  // no other HTML inputtable element receives the key event
 			{
 				targetWidget = this.getCurrFocusedWidget() || null;
 			}
@@ -6230,7 +6266,8 @@ Kekule.Widget.GlobalManager = Class.create(Kekule.Widget.BaseEventsReceiver,
 
 		this.doReactUiEvent(e, targetWidget);
 
-		if (!e.ghostMouseEvent && !Kekule.BrowserFeature.pointerEvent && this.getEnableMouseEventToPointerPolyfill())
+		//if (!e.ghostMouseEvent && !Kekule.BrowserFeature.pointerEvent && this.getEnableMouseEventToPointerPolyfill())
+		if (!e.ghostMouseEvent && !_isNativePointerEventEnabled() && this.getEnableMouseEventToPointerPolyfill())
 		{
 			var mouseEvents = ['mousedown', 'mousemove', 'mouseout', 'mouseover', 'mouseup'];
 			var touchEvents = ['touchstart', 'touchmove', 'touchleave', 'touchend', 'touchcancel'];

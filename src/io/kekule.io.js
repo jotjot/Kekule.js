@@ -121,6 +121,7 @@ Kekule.IO.DataFormatsManager = {
 		}
 		result.mimeType = mimeType;
 		var exts = DataType.isArrayValue(fileExts)? fileExts: [fileExts];
+		exts = exts.map(function(ext) { return ext? ext.toLowerCase(): ext; } )
 		if (!result.fileExts)
 			result.fileExts = exts;
 		else  // merge
@@ -204,7 +205,7 @@ Kekule.IO.DataFormatsManager = {
 			*/
 			matched = (mimeType && (mimeType === info.mimeType));
 			if (!matched)
-				matched = (fileExt && (info.fileExts.indexOf(fileExt) >= 0));
+				matched = (fileExt && (info.fileExts.indexOf(fileExt.toLowerCase()) >= 0));
 			if (matched)
 				return info;
 		}
@@ -769,10 +770,20 @@ Kekule.IO.ChemDataWriterManager = {
 	{
 		if (!id || !writerClass || !formatId || (DataType.isArrayValue(formatId) && !formatId.length))  // empty format
 			return;
-		if (Kekule.IO.ChemDataWriterManager.getWriterInfoById(id)) // id can not be duplicate
+		var oldItem = Kekule.IO.ChemDataWriterManager.getWriterInfoById(id);
+		if (oldItem) // id can not be duplicate
 		{
-			Kekule.raise(/*Kekule.ErrorMsg.WRITER_ID_ALREADY_EXISTS*/Kekule.$L('ErrorMsg.WRITER_ID_ALREADY_EXISTS'));
-			return null;
+			if (writerClass === oldItem.writerClass)  // same writer class, may want to expand the srcClasses?
+			{
+				Kekule.ArrayUtils.pushUnique(oldItem.srcClasses, srcClasses);
+				Kekule.ArrayUtils.pushUnique(oldItem.formatId, formatId);
+				return oldItem;
+			}
+			else
+				{
+				Kekule.raise(/*Kekule.ErrorMsg.WRITER_ID_ALREADY_EXISTS*/Kekule.$L('ErrorMsg.WRITER_ID_ALREADY_EXISTS'));
+				return null;
+			}
 		}
 		var item = {
 			'id': id,
@@ -1347,7 +1358,7 @@ Kekule.IO.loadFileData = function(file, callback, formatId, options)
  * Load chem object from a URL.
  * Note this function relies on AJAX support.
  * @param {String} fileUrl
- * @param {Function} callback Callback function when the file is loaded. Has two params (chemObj, success).
+ * @param {Function} callback Callback function when the file is loaded. Has params (chemObj, success, srcData).
  * @param {String} formatId If not set, format will be get from file name automatically.
  * @param {Hash} options Additional options to read data. Different data format may have different options.
  */
@@ -1384,7 +1395,7 @@ Kekule.IO.loadUrlData = function(fileUrl, callback, formatId, options)
 				info.fileName = fileUrl;
 				//var success = !!chemObj;
 				var success = (chemObj !== false);
-				callback(chemObj, success);
+				callback(chemObj, success, data);
 			}
 			else
 			{

@@ -76,7 +76,7 @@ Formula can be calculated from atoms in molecule:[#example]_
   // turn formula object into text
   console.log(formula.getText());
 
-Ring Information [#module]_
+Ring Information
 ---------------------------
 
 Kekule.js provides method to easily find all rings and SSSR(Smallest Set of Smallest Rings) of a molecule.
@@ -162,7 +162,7 @@ by *findAllRings* and *findSSSR* will be cached until the structure of molecule 
 .. attention:: Currently, multicenter bonds and bond-bond connections are ignored during ring perception.
 
 
-Aromatic Detection [#module]_
+Aromatic Detection
 -----------------------------
 
 Currently, to save the calculation time, aromatic detection is carried on SSSR rings of molecule in
@@ -201,7 +201,7 @@ The codes above performed on phenanthrene will shows the following logs in conso
   ring with 6 atoms:  3
 
 
-Stereo Perception [#module]_
+Stereo Perception
 ----------------------------
 
 Chiral atoms or stereo bonds can also be revealed:[#example]_
@@ -230,7 +230,3 @@ value: 1(odd), 2(even) or 0(unknown):[#example]_
 
 
 .. [#example] Example of this chapter can be found and run at `here <../examples/getMolInfo.html>`_.
-.. [#module] To use this feature, algorithm module must be loaded, e.g.:
-.. code-block:: html
-
-	<script src="kekule.js?module=algorithm"></script>

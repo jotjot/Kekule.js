@@ -29,3 +29,5 @@ $string['pluginname'] = 'Kekule.js';
 // string used in settings
 $string['captionKekuleDir'] = 'Kekule.js plugin directory';
 $string['descKekuleDir'] = 'Root directory that contains Kekule.js plugin';
+$string['captionEnable3DViewer'] = 'Enable 3D View functions of Kekule.js';
+$string['descEnable3DViewer'] = 'If enabled, additional Three.js files will be loaded to page';

@@ -221,9 +221,13 @@ Kekule.Calculator.Base = Class.create(ObjectEx,
 	 */
 	error: function(err)
 	{
-		Kekule.error(err);
 		if (this._errCallback)
 			this._errCallback(err);
+		else
+		{
+			//Kekule.error(err);
+			throw err;
+		}
 	},
 	/**
 	 * Called when the calculation job is done.
@@ -366,7 +370,7 @@ Kekule.Calculator.Base = Class.create(ObjectEx,
 	 */
 	reactWorkerError: function(e)
 	{
-		Kekule.error(e.message);
+		//Kekule.error(e.message);
 		//this.done(e.message);
 		this.error(e.message);
 	},
@@ -633,10 +637,20 @@ Kekule.Calculator.Services = {
 };
 
 /**
+ * Check if a certain service can be executed with calculator.
+ * @param {String} serviceName
+ * @returns {Bool}
+ */
+Kekule.Calculator.hasService = function(serviceName)
+{
+	return !!CS.getServiceClass(serviceName);
+};
+
+/**
  * Generate 2D or 3D structure based on sourceMol.
  * This method seek for registered calculation service with genSeviceName.
  * @param {Kekule.StructureFragment} sourceMol
- * @param {String} genSeviceName
+ * @param {String} genServiceName
  * @param {Hash} options
  * @param {Func} callback Callback function when the calculation job is done. Callback(generatedMol, childObjMap).
  * @param {Func} errCallback Callback function when error occurs in calculation. Callback(err).

@@ -274,6 +274,20 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 		else
 			return this.tryApplySuper('getSavingTargetObj')  /* $super() */;
 	},
+	/** @ignore */
+	_cloneSavingTargetObj: function(obj)
+	{
+		var space = this.getChemSpace();
+		var childCount = space.getChildCount();
+		if (childCount === 1 && obj === space.getChildAt(0))
+		{
+			// The objRef properties are related with chemspace, if clone obj only, the relation may be lost
+			var clonedSpace = space.clone(true);
+			return clonedSpace.getChildAt(0);
+		}
+		else
+			return this.tryApplySuper('_cloneSavingTargetObj', [obj]);
+	},
 
 	/** @ignore */
 	createDefaultConfigs: function()
@@ -1725,6 +1739,12 @@ Kekule.Editor.ChemSpaceEditor = Class.create(Kekule.Editor.BaseEditor,
 				'hint': $L('ChemWidgetTexts.HINT_MOL_BOND_HYDROGEN'),
 				'htmlClass': HTMLCLASS_PREFIX + 'Hydrogen',
 				'bondProps': {'bondType': BT.HYDROGEN, 'bondOrder': BO.SINGLE,	'stereo': BS.NONE}
+			},
+			'transition': {
+				'text': $L('ChemWidgetTexts.CAPTION_MOL_BOND_TRANSITION'),
+				'hint': $L('ChemWidgetTexts.HINT_MOL_BOND_TRANSITION'),
+				'htmlClass': HTMLCLASS_PREFIX + 'Transition',
+				'bondProps': {'bondType': BT.TRANSITION, 'bondOrder': BO.SINGLE,	'stereo': BS.NONE}
 			}
 		};
 		var predefinedExtraData = {
@@ -5745,6 +5765,8 @@ Kekule.Editor.RepositoryIaController = Class.create(Kekule.Editor.StructureInser
 						this.startDirectManipulate(insertResult.manipulateType, allObjs,
 							insertResult.coord, insertResult.box, insertResult.rotateCenter);
 						this.moveManipulatedObjs(coord);  // force a "move" action, to apply possible merge to all inserted objects
+						this.notifyEditorEndManipulateObjects();  // important, end prev manipulate (but do not push the operations), otherwise the editor._objectManipulateFlag will not be reset to 0
+
 						this.startDirectManipulate(insertResult.manipulateType, directObjs,
 							insertResult.coord, insertResult.box, insertResult.rotateCenter);  // directly manipulate on suitable objects
 						this.moveManipulatedObjs(coord);  // force a "move" action, to apply possible merge to direct manipulatd objs
@@ -6989,6 +7011,7 @@ Kekule.Editor.PathGlyphIaController = Class.create(Kekule.Editor.RepositoryIaCon
 	getDirectManipulateObjs: function(/*$super, */insertedObjs, repInsertionResult)
 	{
 		//return insertedObjs;
+		var result;
 		if (insertedObjs.length === 1)
 		{
 			var parent = insertedObjs[0];
@@ -6999,11 +7022,13 @@ Kekule.Editor.PathGlyphIaController = Class.create(Kekule.Editor.RepositoryIaCon
 				//if (nodeCount === 2)
 				//  return [parent.getNodeAt(nodeCount - 1)];
 				if (parent.getDirectManipulationTarget)
-					return parent.getDirectManipulationTarget();
+					result = parent.getDirectManipulationTarget();
 			}
 		}
 		// default
-		return this.tryApplySuper('getDirectManipulateObjs', [insertedObjs, repInsertionResult])  /* $super(insertedObjs, repInsertionResult) */;
+		if (!result)
+			result = this.tryApplySuper('getDirectManipulateObjs', [insertedObjs, repInsertionResult])  /* $super(insertedObjs, repInsertionResult) */;
+		return result;
 	},
 	/** @ignore */
 	getInsertedObjs: function(/*$super*/)

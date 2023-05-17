@@ -6,10 +6,12 @@
  * @namespace
  * @description Root namespace of Kekule library.
  */
-var Kekule = {
+var Kekule = (typeof(Kekule) === 'object')? Kekule: {};
+
+var Kekule = Object.extend(Kekule, {
 	LIBNAME: 'Kekule.js',
 	LIBNAME_CORE: 'Kekule',
-	VERSION: '0.9.7.21042802',
+	VERSION: '1.0.0.23051700',
 	/**
 	 * A flag that indicate whether all essential Kekule modules are loaded into document.
 	 * @ignore
@@ -28,7 +30,7 @@ var Kekule = {
 	// Whether auto find title and description text for object property
 	/** @ignore */
 	PROP_AUTO_TITLE: true
-};
+});
 
 /**
  * Called when all essential modules is loaded.
@@ -114,12 +116,12 @@ Kekule._registerAfterLoadProc = Kekule._ready;  // for backward
  */
 Kekule.$jsRoot = this;
 
-if (typeof(self) === 'object')
-	Kekule.$jsRoot = self;
-else if (typeof(window) === 'object' && window && window.document)
+if (typeof(window) === 'object' && window && window.document)
 	Kekule.$jsRoot = window;
 else if (typeof(global) === 'object')  // node env
 	Kekule.$jsRoot = global;
+else if (typeof(self) === 'object')
+	Kekule.$jsRoot = self;
 
 Kekule.$jsRoot.Kekule = Kekule;
 
@@ -205,7 +207,10 @@ Kekule.environment = {
 	variables: {},
 	getEnvVar: function(key)
 	{
-		return Kekule.environment.variables[key];
+		var result = Kekule.environment.variables[key];
+		if (result === undefined)
+			result = (Kekule.$jsRoot['_kekule_environment_'] && Kekule.$jsRoot['_kekule_environment_'][key]);
+		return result;
 	},
 	setEnvVar: function(key, value)
 	{
@@ -248,7 +253,11 @@ if (Kekule.$jsRoot['__$kekule_scriptfile_utils__'])  // script file util methods
 			return this;
 		}
 		else
+		{
+			if (callback)
+				callback(new Error('Kekule script src info not found, can not load modules dynamicly.'));
 			return this;
+		}
 	};
 	Kekule.loadModules = Kekule.modules;  // alias of function Kekule.modules
 }
@@ -274,9 +283,16 @@ Kekule.getScriptSrc = function()
 {
 	return Kekule.environment.getEnvVar('kekule.scriptSrc') || Kekule.scriptSrcInfo.src;
 };
+Kekule.getDividedMinSubPath = function()
+{
+	return Kekule.environment.getEnvVar('kekule.dividedMinSubPath') || Kekule.scriptSrcInfo.dividedMinSubPath;
+}
 Kekule.isUsingMinJs = function()
 {
-	return Kekule.environment.getEnvVar('kekule.useMinJs') || Kekule.scriptSrcInfo.useMinFile;
+	var result = Kekule.environment.getEnvVar('kekule.useMinJs');
+	if (result === undefined)
+		result = Kekule.scriptSrcInfo.useMinFile;
+	return result;
 };
 Kekule.getLanguage = function()
 {

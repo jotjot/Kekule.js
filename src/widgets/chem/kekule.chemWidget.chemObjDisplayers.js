@@ -27,6 +27,7 @@
 "use strict";
 
 var PS = Class.PropertyScope;
+var AU = Kekule.ArrayUtils;
 var DU = Kekule.DomUtils;
 var ZU = Kekule.ZoomUtils;
 var CW = Kekule.ChemWidget;
@@ -46,6 +47,7 @@ Kekule.ChemWidget.HtmlClassNames = Object.extend(Kekule.ChemWidget.HtmlClassName
 	ACTION_MOL_DISPLAY_STICKS: 'K-Chem-MolDisplaySticks',
 	ACTION_MOL_DISPLAY_SPACEFILL: 'K-Chem-MolDisplaySpaceFill',
 	ACTION_MOL_HIDE_HYDROGENS: 'K-Chem-MolHideHydrogens',
+	ACTION_MOL_AUTO_COORD_GENERATION: 'K-Chem-MolAutoCoordGeneration',
 	ACTION_ZOOMIN: 'K-Chem-ZoomIn',
 	ACTION_ZOOMOUT: 'K-Chem-ZoomOut',
 	ACTION_RESET: 'K-Chem-Reset',
@@ -168,6 +170,8 @@ Kekule.ChemWidget.ChemObjDisplayerEnvironmentConfigs = Class.create(Kekule.Abstr
  * @property {Bool} enableLoadNewFile Whether open a external file to displayer is allowed.
  * @property {Array} allowedInputFormatIds Formats that shown in input file dialog. Default is null, means accept all available formats.
  * @property {Array} allowedOutputFormatIds Formats that shown in output file dialog. Default is null, means accept all available formats.
+ * @property {String} defaultInputFormatId
+ * @property {String} defaultOutputFormatId
  * @property {Hash} standardizationOptions Possible options when do standardization on molecule before saving.
  */
 /**
@@ -194,6 +198,7 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 		//this._errorReportElem = null;  // use internally
 		this._bgColorMap = {};  // use internally
 		this._contextTransformOpsMap = new Kekule.MapEx();
+		this._reactChemObjDrawBind = this._reactChemObjDraw.bind(this);
 		this.setPropStoreFieldValue('resetAfterLoad', true);
 		this.setPropStoreFieldValue('renderType', renderType || Kekule.Render.RendererType.R2D); // must set this value first
 		this.setPropStoreFieldValue('displayerConfigs', displayerConfigs || this.createDefaultConfigs());
@@ -217,6 +222,7 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			r.finalize();
 		this.setPropStoreFieldValue('boundInfoRecorder', null);
 		*/
+		this.clearSubViews();
 
 		this.setPropStoreFieldValue('chemObj', null);
 		this.getPainter().finalize();
@@ -240,6 +246,9 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 		this.defineProp('enableLoadNewFile', {'dataType': DataType.BOOL});
 		this.defineProp('allowedInputFormatIds', {'dataType': DataType.ARRAY});
 		this.defineProp('allowedOutputFormatIds', {'dataType': DataType.ARRAY});
+
+		this.defineProp('defaultInputFormatId', {'dataType': DataType.STRING, 'serializable': false});
+		this.defineProp('defaultOutputFormatId', {'dataType': DataType.STRING, 'serializable': false});
 
 		this.defineProp('standardizationOptions', {'dataType': DataType.HASH});
 
@@ -477,6 +486,19 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 				return this;
 			}
 		});
+		this.defineProp('hideHydrogens', {'dataType': DataType.BOOL, 'serializable': false,
+			'getter': function()
+			{
+				var op = this.getDrawOptions() || {};
+				return op.hideHydrogens;
+			},
+			'setter': function(value)
+			{
+				this.getDrawOptions().hideHydrogens = !!value;
+				this.drawOptionChanged();
+				return this;
+			}
+		});
 		this.defineProp('allowCoordBorrow', {'dataType': DataType.BOOL, 'serializable': false, 'scope': PS.PUBLIC,
 			'getter': function()
 			{
@@ -527,9 +549,10 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			'getter': function(slient)
 			{
 				var result = this.getPropStoreFieldValue('drawBridge');
-				if (!result)
+				if (!result && !this.__$drawBridgeInitialized$__)
 				{
-					result = this.createDrawBridge(slient);
+					this.__$drawBridgeInitialized$__ = true;   // avoid call this.createDrawBridge() multiple times
+					result = this.createDrawBridge(/*slient*/);
 					this.setPropStoreFieldValue('drawBridge', result);
 				}
 				return result;
@@ -587,8 +610,21 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			}
 		});
 		// private object to record all bound infos
-		this.defineProp('boundInfoRecorder', {'dataType': 'Kekule.Render.BoundInfoRecorder', 'serializable': false, 'setter': null,
+		this.defineProp('boundInfoRecorder', {'dataType': 'Kekule.Render.BoundInfoRecorder', 'serializable': false, 'scope': Class.PropertyScope.PRIVATE, 'setter': null,
 			'getter': function() { var p = this.getRootRenderer(); return p && p.getBoundInfoRecorder(); }
+		});
+
+		// private, sub views for individual objects in displayer
+		this.defineProp('subViews', {'dataType': DataType.ARRAY, 'serializable': false, 'setter': null,
+			'getter': function(canCreate) {
+			  var result = this.getPropStoreFieldValue('subViews');
+			  if (!result && canCreate)
+			  {
+			  	result = [];
+			  	this.setPropStoreFieldValue('subViews', result);
+			  }
+			  return result;
+			}
 		});
 	},
 	/** @ignore */
@@ -686,13 +722,18 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 		}
 		this.setPropStoreFieldValue('drawContext', null);
 		this.setPropStoreFieldValue('drawBridge', null);
+		this.__$drawBridgeInitialized$__ = false;  // important, marks the draw bridge should be reinitialized
 		var newBgColor = this.getBackgroundColorOfType(newType);
 		this.getDrawOptions().moleculeDisplayType = this.getDefaultMoleculeDisplayType(newType);  // reset display type
 		//this.setBackgroundColor(newBgColor);
 		this.setPropStoreFieldValue('backgroundColor', newBgColor);
 		this.backgroundColorChanged(true);  // notify back color change but not repaint, as painter currently is still old one
 		//if (chemObj)  // repaint
-		this.setChemObj(chemObj || null);
+		//this.setChemObj(chemObj || null);
+		// clear old draw options if oldObj is set
+
+		this._doLoadOnObj(chemObj, {refreshOnly: true});
+		this.resetDisplay();
 	},
 	/**
 	 * Force to recreate drawing context and repaint.
@@ -840,13 +881,28 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 		if (!result)   // can not find suitable draw bridge
 		{
 			if (!slient)
-				Kekule.error(/*Kekule.ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED*/Kekule.$L('ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED'));
+			{
+				var errorMsg = M.getUnavailableMessage() || Kekule.error(Kekule.$L('ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED'));
+				if (errorMsg)
+					this.reportException(errorMsg, Kekule.ExceptionLevel.NOT_FATAL_ERROR);
+			}
+			// Kekule.error(/*Kekule.ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED*/Kekule.$L('ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED'));
 		}
 		/* infinite loop, remove this part
 		if (this.getBackgroundColor() && result.setClearColor)
 			result.setClearColor(this.getDrawContext(), this.getBackgroundColor());
 		*/
 		return result;
+	},
+
+	/**
+	 * Returns the root element to hold the drawing context parents.
+	 * Descendants may override this method
+	 * @returns {HTMLElement}
+	 */
+	getClientElement: function()
+	{
+		return this.getElement();
 	},
 
 	/**
@@ -868,13 +924,12 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			result.style.width = '100%';
 			result.style.height = '100%';
 			// insert as first child
-			var root = this.getElement();
+			var root = this.getClientElement();
 			var currFirst = Kekule.DomUtils.getFirstChildElem(root);
 			if (currFirst)
 				root.insertBefore(result, currFirst);
 			else
 				root.appendChild(result);
-
 		}
 		return result;
 	},
@@ -915,7 +970,8 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	/** @private */
 	refitDrawContext: function(doNotRepaint)
 	{
-		if (this.getDrawBridge(true) && this.getDrawContext())
+		//if (this.getDrawBridge(true) && this.getDrawContext())
+		if (this.getDrawBridge() && this.getDrawContext())
 		{
 			//var dim = Kekule.HtmlElementUtils.getElemScrollDimension(this.getElement());
 			var dim = Kekule.HtmlElementUtils.getElemClientDimension(this.getDrawContextParentElem());
@@ -955,6 +1011,7 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	 */
 	changeContextDimension: function(newDimension)
 	{
+		/*
 		if (this.getDrawBridge() && this.getDrawContext())
 		{
 			var width = newDimension.width;
@@ -965,10 +1022,6 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 				var overSamplingRatio = this._getContextOverSamplingRatio();
 				if (overSamplingRatio !== 1 && Kekule.BrowserFeature.cssTranform)  // oversampling enabled
 				{
-					/*
-					width *= overSamplingRatio;
-					height *= overSamplingRatio;
-					*/
 					var scale = 1 / overSamplingRatio;
 					elem.style.transform = 'scale(' + scale + ',' + scale + ')';
 					elem.style.transformOrigin = '0 0';
@@ -982,7 +1035,48 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 					this.getDrawBridge().setContextParam(this.getDrawContext(), 'overSamplingRatio', null);
 				}
 			}
-			this._resizeContext(this.getDrawContext(), this.getDrawBridge(), width, height);
+			//this._resizeContext(this.getDrawContext(), this.getDrawBridge(), width, height);
+			this.doChangeContextDimension(width, height);
+			//this.getDrawBridge().setContextDimension(this.getDrawContext(), newDimension.width, newDimension.height);
+			return true;
+		}
+		else
+			return false;
+		*/
+		return this.doChangeContextDimension(this.getDrawContext(), this.getDrawBridge(), newDimension, true);
+	},
+	/** @private */
+	doChangeContextDimension: function(drawContext, drawBridge, newDimension, enableOverSampling)
+	{
+		//this._resizeContext(this.getDrawContext(), this.getDrawBridge(), width, height);
+		if (drawBridge && drawContext)
+		{
+			var width = newDimension.width;
+			var height = newDimension.height;
+			var elem = drawBridge.getContextElem(drawContext);
+			if (elem)  // use transform CSS property to do resampling
+			{
+				var overSamplingRatio = this._getContextOverSamplingRatio();
+				if (overSamplingRatio !== 1 && Kekule.BrowserFeature.cssTranform && enableOverSampling)  // oversampling enabled
+				{
+					/*
+					width *= overSamplingRatio;
+					height *= overSamplingRatio;
+					*/
+					var scale = 1 / overSamplingRatio;
+					elem.style.transform = 'scale(' + scale + ',' + scale + ')';
+					elem.style.transformOrigin = '0 0';
+					//this.setPropStoreFieldValue('actualOverSamplingRatio', overSamplingRatio);  // store the over sampling ratio for rendering
+					drawBridge.setContextParam(drawContext, 'overSamplingRatio', overSamplingRatio);
+				}
+				else
+				{
+					elem.style.transform = '';
+					//this.setPropStoreFieldValue('actualOverSamplingRatio', null);  // store the over sampling ratio for rendering
+					drawBridge.setContextParam(drawContext, 'overSamplingRatio', null);
+				}
+			}
+			this._resizeContext(drawContext, drawBridge, width, height);
 			//this.getDrawBridge().setContextDimension(this.getDrawContext(), newDimension.width, newDimension.height);
 			return true;
 		}
@@ -1014,13 +1108,26 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 		var old = this.getPropStoreFieldValue('painter');
 		if (old)
 		{
+			old.removeEventListener('draw', this._reactChemObjDrawBind);
 			old.finalize();
 		}
-		var result = new Kekule.Render.ChemObjPainter(this.getRenderType(), chemObj, this.getDrawBridge());
+		var drawBridge = this.getDrawBridge();
+		var result = drawBridge? (new Kekule.Render.ChemObjPainter(this.getRenderType(), chemObj || this.getChemObj(), this.getDrawBridge())): null;
 		this.setPropStoreFieldValue('painter', result);
+		if (result)
+			result.addEventListener('draw', this._reactChemObjDrawBind);
 		// create new bound info recorder
 		//this.createNewBoundInfoRecorder(result);
 		return result;
+	},
+	/**
+	 * Returns whether the painter, draw bridge and context are ready, the rendering can be successfully performed.
+	 * @returns {Bool}
+	 */
+	isRenderable: function()
+	{
+		return !!(/*this.getPainter() &&*/ this.getDrawBridge() && this.getDrawContext());
+		//return !!(this.getPropStoreFieldValue('painter') && this.getDrawBridge() && this.getDrawContext());
 	},
 	/* @private */
 	/*
@@ -1063,8 +1170,15 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	 * @param {Kekule.ChemObject} chemObj
 	 * @ignore
 	 */
-	doLoad: function(chemObj)
+	doLoad: function(chemObj, options)
 	{
+		this._doLoadOnObj(chemObj);
+	},
+	/** @private */
+	_doLoadOnObj: function(chemObj, options)
+	{
+		var refreshOnly = options && options.refreshOnly;
+		this.clearSubViews();   // clear all old subviews when loading a new chem object
 		//console.log('doLoad', chemObj);
 		this.refitDrawContext(true);  // ensure the context size is correct, but not force repaint.
 		//this.hideExceptionReport();
@@ -1084,7 +1198,8 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 				*/
 
 				var painter = this.createNewPainter(chemObj);
-				painter.setRenderConfigs(this.getRenderConfigs());
+				if (painter)
+					painter.setRenderConfigs(this.getRenderConfigs());
 
 				/*
 				 var drawOptions = this.getDrawOptions();
@@ -1116,12 +1231,16 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 				 */
 				this.repaint();
 				this.setPropStoreFieldValue('chemObjLoaded', true);  // indicate obj loaded successful
-				this.invokeEvent('load', {'obj': chemObj});
+				if (!refreshOnly)
+				{
+					this.invokeEvent('load', {'obj': chemObj});
+				}
 			}
 			else  // no object, clear
 			{
 				this.clearContext();
-				this.invokeEvent('load', {'obj': chemObj});  // even chemObj is null, this event should also be invoked
+				if (!refreshOnly)
+					this.invokeEvent('load', {'obj': chemObj});  // even chemObj is null, this event should also be invoked
 			}
 		}
 		catch(e)
@@ -1148,56 +1267,14 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 		// do nothing here
 	},
 
-	/** @private */
-	_tryAutoGenerateChemObjCoords: function(chemObj, callback)
-	{
-		// check if child nodes has coord and can be displayed
-		if (chemObj instanceof Kekule.Molecule
-			&& this.getDisplayerConfigs().getIoConfigs().getAutoGenerateCoordsAfterLoad()
-			&& Kekule.Calculator && Kekule.Calculator.generateStructure)  // can auto generate coords
-		{
-			//console.log('generate coords');
-			var is3D = this.getCoordMode() === Kekule.CoordMode.COORD3D;
-			var hasCoords = chemObj.nodesHasCoordOfMode(this.getCoordMode(), this.getAllowCoordBorrow(), true);
-			if (!hasCoords)  // auto generate
-			{
-				var serviceName = is3D? Kekule.Calculator.Services.GEN3D: Kekule.Calculator.Services.GEN2D;
-				Kekule.Calculator.generateStructure(chemObj, serviceName, {modifySource: true},
-					function (generatedMol)
-					{
-						callback(generatedMol);
-					},
-					function (err)
-					{
-						callback(chemObj);
-						Kekule.error(err);
-					}
-				);
-			}
-			else
-				callback(chemObj);
-		}
-		else  // can not generate coords, callback immediately
-		{
-			callback(chemObj);
-		}
-	},
-	/** @private */
-	_tryAutoGenerateChemObjCoordsAndLoad: function(chemObj)
-	{
-		var self = this;
-		//console.log('here');
-		var done = function(chemObj) { self.setChemObj(chemObj); };
-		this._tryAutoGenerateChemObjCoords(chemObj, done);
-	},
-
 	/**
 	 * Load chem object from data of special MIME type or file format.
 	 * @param {Variant} data Usually text content.
 	 * @param {String} mimeType
 	 * @param {String} fromUrlOrFileName From which file or url is this data loaded.
+	 * @param {String} formatId
 	 */
-	loadFromData: function(data, mimeType, fromUrlOrFileName)
+	loadFromData: function(data, mimeType, fromUrlOrFileName, formatId, objAfterLoadCallback)
 	{
 		try
 		{
@@ -1209,11 +1286,18 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			else
 			{
 				//var ext = fromUrlOrFileName? Kekule.UrlUtils.extractFileExt(fromUrlOrFileName): null;
-				var chemObj = Kekule.IO.loadTypedData(data, mimeType, fromUrlOrFileName);
+				var chemObj;
+				if (formatId)
+					chemObj = Kekule.IO.loadFormatData(data, formatId);
+				else if (mimeType || fromUrlOrFileName)
+					chemObj = Kekule.IO.loadTypedData(data, mimeType, fromUrlOrFileName);
 				if (chemObj)
 				{
 					//this.setChemObj(chemObj);
-					this._tryAutoGenerateChemObjCoordsAndLoad(chemObj);
+					if (objAfterLoadCallback)
+						this._tryAutoGenerateChemObjCoordsForLoading(chemObj, objAfterLoadCallback);
+					else
+						this._tryAutoGenerateChemObjCoordsAndLoad(chemObj);
 				}
 				else
 					Kekule.error(/*Kekule.ErrorMsg.LOAD_CHEMDATA_FAILED*/Kekule.$L('ErrorMsg.LOAD_CHEMDATA_FAILED'));
@@ -1285,7 +1369,8 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			var doCanonicalize = this._needToCanonicalizeBeforeSaving() && this.getDisplayerConfigs().getIoConfigs().getCanonicalizeBeforeSave();
 			if (doCanonicalize && obj.standardize)  // canonicalize first
 			{
-				var obj = obj.clone? obj.clone(true): obj;  // clone with id
+				//var obj = obj.clone? obj.clone(true): obj;  // clone with id
+				var obj = this._cloneSavingTargetObj(obj);
 				obj.standardize(this.getStandardizationOptions());
 			}
 			if (!dataType)
@@ -1301,6 +1386,12 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			Kekule.error(/*Kekule.ErrorMsg.NO_SUITABLE_WRITER_FOR_FORMAT*/Kekule.$L('ErrorMsg.NO_SUITABLE_WRITER_FOR_FORMAT'));
 			return null;
 		}
+	},
+	/** @private */
+	_cloneSavingTargetObj: function(obj)
+	{
+		var result = obj.clone? obj.clone(true): obj;  // clone with id
+		return result;
 	},
 	/**
 	 * Return whether this displayer need to canonicalize molecule before save.
@@ -1321,6 +1412,128 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	},
 
 	/** @private */
+	_molNeedAutoCoordGeneration: function(mol, coordMode)
+	{
+		var result = (mol instanceof Kekule.StructureFragment) && (mol.getNodeCount() > 0) && !mol.nodesHasCoordOfMode(this.getCoordMode(), this.getAllowCoordBorrow(), true);
+		return result;
+	},
+	/** @private */
+	_isCoordGeneratorAvailable: function(coordMode)
+	{
+		if ( Kekule.Calculator && Kekule.Calculator.Services)
+		{
+			var serviceName = (coordMode === Kekule.CoordMode.COORD3D) ? Kekule.Calculator.Services.GEN3D : Kekule.Calculator.Services.GEN2D;
+			return Kekule.Calculator.hasService(serviceName)
+		}
+		else
+			return false;
+	},
+	/**
+	 * Returns whether the coord auto generation can be done in current displayer.
+	 * @returns {Bool}
+	 */
+	canAutoGenerateCoordForChemObj: function(chemObj, coordMode)
+	{
+		if (!chemObj)
+			chemObj = this.getChemObj();
+		if (Kekule.ObjUtils.isUnset(coordMode))
+			coordMode = this.getCoordMode();
+		var result = (chemObj && chemObj instanceof Kekule.StructureFragment
+			&& chemObj.hasCtab()
+			&& Kekule.Calculator && Kekule.Calculator.generateStructure
+			&& this._isCoordGeneratorAvailable(coordMode));
+		return result;
+	},
+	/** @private */
+	_tryAutoGenerateChemObjCoords: function(chemObj, coordMode, callback)
+	{
+		if (Kekule.ObjUtils.isUnset(coordMode))
+			coordMode = this.getCoordMode();
+		/*
+		if (chemObj instanceof Kekule.Molecule
+			&& this.getDisplayerConfigs().getIoConfigs().getAutoGenerateCoordsAfterLoad()
+			&& Kekule.Calculator && Kekule.Calculator.generateStructure)  // can auto generate coords
+		*/
+		if (this.canAutoGenerateCoordForChemObj(chemObj, coordMode))
+		{
+			var is3D = coordMode === Kekule.CoordMode.COORD3D;
+			//var hasCoords = (chemObj.getNodeCount() <= 0) || chemObj.nodesHasCoordOfMode(this.getCoordMode(), this.getAllowCoordBorrow(), true);
+			//if (needGeneration)  // auto generate
+			{
+				var serviceName = is3D? Kekule.Calculator.Services.GEN3D: Kekule.Calculator.Services.GEN2D;
+				try
+				{
+					Kekule.Calculator.generateStructure(chemObj, serviceName, {modifySource: true},
+						function (generatedMol)
+						{
+							callback(generatedMol);
+						},
+						function (err)
+						{
+							callback(chemObj);
+							Kekule.error(err);
+						}
+					);
+				}
+				catch(e)
+				{
+					callback(chemObj);
+				}
+			}
+			//else
+			//	callback(chemObj);
+		}
+		else  // can not generate coords, callback immediately
+		{
+			callback(chemObj);
+		}
+	},
+	/** @private */
+	_tryAutoGenerateChemObjCoordsForLoading: function(chemObj, callback)
+	{
+		if (this.getDisplayerConfigs().getIoConfigs().getAutoGenerateCoordsAfterLoad())
+		{
+			var needGeneration = this._molNeedAutoCoordGeneration(chemObj, this.getCoordMode());
+			if (needGeneration)
+				this._tryAutoGenerateChemObjCoords(chemObj, null, callback);
+			else
+				callback(chemObj);
+		}
+		else
+			callback(chemObj);
+	},
+	/** @private */
+	_tryAutoGenerateChemObjCoordsAndLoad: function(chemObj)
+	{
+		var self = this;
+		//console.log('here');
+		var done = function(chemObj) { self.setChemObj(chemObj); };
+		this._tryAutoGenerateChemObjCoordsForLoading(chemObj, done);
+	},
+
+	/**
+	 * Automatically create coords for chemObj loaded in displayer.
+	 * @param {Func} callback
+	 */
+	autoGenerateChemObjCoords: function(callback, chemObj, coordMode)
+	{
+		var replaceCurrent = !chemObj && Kekule.ObjUtils.isUnset(coordMode);
+		if (!chemObj)
+			chemObj = this.getChemObj();
+		if (Kekule.ObjUtils.isUnset(coordMode))
+			coordMode = this.getCoordMode();
+		var self = this;
+		var done = function(generatedObj) {
+			if (replaceCurrent)
+				self.load(generatedObj);
+			if (callback)
+				callback(generatedObj);
+		};
+		this._tryAutoGenerateChemObjCoords(chemObj, coordMode, done);
+		return this;
+	},
+
+	/** @private */
 	getDrawClientDimension: function()
 	{
 		var dim = Kekule.HtmlElementUtils.getElemClientDimension(this.getCoreElement());
@@ -1337,14 +1550,14 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	},
 
 	/** @private */
-	calcDrawBaseCoord: function(drawOptions)
+	calcDrawBaseCoord: function(drawOptions, applyAutoSize)
 	{
 		var baseCoord;
 		var context = this.getDrawContext();
 		var painter = this.getPainter();
 		var newDimension;
 		// note in continuous repainting phase (such as periodical rotation), we disable auto size
-		if ((!this._isContinuousRepainting) && this.getAutoSize() && this.allowAutoSize())  // need to resize widget dimension
+		if ((!this._isContinuousRepainting) && applyAutoSize && /*this.getAutoSize() && this.allowAutoSize() */ this.getActualAutoSize())  // need to resize widget dimension
 		{
 			var padding = this.getPadding() || 0;
 			var renderBox = painter.estimateScreenBox(context, baseCoord, drawOptions, this.getAllowCoordBorrow());
@@ -1408,14 +1621,20 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	{
 		return this.getDrawOptions();
 	},
+	/** @private */
+	getActualAutoSize: function()
+	{
+		// when autofit, the autosize should be be applied
+		return this.getAutoSize() && this.allowAutoSize() && !this.getAutofit();
+	},
 
 	/** @private */
-	calcDrawParams: function(overrideOptions)
+	calcDrawParams: function(overrideOptions, applyAutoSize)
 	{
 		var ops = this.getActualDrawOptions();
 		if (overrideOptions)
 			ops = Object.extend(ops, overrideOptions);
-		var baseCoordResult = this.calcDrawBaseCoord(ops);
+		var baseCoordResult = this.calcDrawBaseCoord(ops, applyAutoSize);
 		return {
 			'drawOptions': ops,
 			'baseCoord': baseCoordResult.baseCoord,
@@ -1490,6 +1709,9 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 		if (this.isPainting())  // avoid duplicated repainting
 			return;
 
+		if (!this.isRenderable())
+			return;
+
 		this.beginPaint();
 		try
 		{
@@ -1528,10 +1750,10 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 				transformOps = this._contextTransformOpsMap.get(context) || null;
 				transformOpsChanged = false;
 				//console.log(transformOps);
-				drawParams = this.calcDrawParams(transformOps);
+				drawParams = this.calcDrawParams(transformOps, true);
 			}
 			else
-				drawParams = this.calcDrawParams(overrideOptions);
+				drawParams = this.calcDrawParams(overrideOptions, true);
 
 			//drawParams.drawOptions.unitLength = 2;
 
@@ -1630,6 +1852,31 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	},
 
 	/**
+	 * Event listener of the draw event of painter.
+	 * @param {Hash} e
+	 * @private
+	 */
+	_reactChemObjDraw: function(e)
+	{
+		var obj = e.obj;
+		if (obj === this.getChemObj())
+		{
+			this.chemObjRendered(obj, e.renderOptions || {});
+		}
+	},
+	/**
+	 * Called after the drawn of chem object in displayer.
+	 * Desendants may override this method to retrieve addtional render params (e.g. renderOptions).
+	 * @param {Kekule.ChemObject} chemObj
+	 * @param {Hash} renderOptions
+	 * @private
+	 */
+	chemObjRendered: function(chemObj, renderOptions)
+	{
+		// do nothing here
+	},
+
+	/**
 	 * Returns background color used for a special renderType.
 	 * @param {Int} renderType
 	 * @returns {String}
@@ -1660,7 +1907,8 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			color = this.getBackgroundColor();
 		if (color === 'transparent')
 			color = null;
-		var drawBridge = this.getDrawBridge(true);
+		//var drawBridge = this.getDrawBridge(true);
+		var drawBridge = this.getDrawBridge();
 		if (drawBridge && drawBridge.setClearColor)
 		{
 			drawBridge.setClearColor(this.getDrawContext(), color);
@@ -1803,11 +2051,12 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	{
 		var painter = this.getPainter();
 		var drawOptions = this.getDrawOptions();
-		if (painter.supportGeometryOptionChange())
+		if (painter && painter.supportGeometryOptionChange())
 		{
 			var context = this.getDrawContext();
 			painter.changeGeometryOptions(context, drawOptions.baseCoord || this._lastBaseCoord, drawOptions);
 			this._savePainterInitialRenderTransformOptions(context, painter);
+			this.invokeEvent('repaint', {'obj': this.getChemObj()});
 		}
 		else
 			this.drawOptionChanged();
@@ -1864,8 +2113,11 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	 * Zoom to a specified ratio
 	 * @param {Float} value
 	 * @param {Bool} suspendRendering Set this to true if a immediate repaint is not needed.
+	 * @param {Hash} zoomCenterCoord The center coord for zooming. If not set, center of whole context will be used.
+	 *   Note currently in displayer, this coord is not used when zooming.
+	 *   Only in the editor descendants, these value will be take into consideration.
 	 */
-	zoomTo: function(value, suspendRendering)
+	zoomTo: function(value, suspendRendering, zoomCenterCoord)
 	{
 		this.getDrawOptions().zoom = value;
 		//this.drawOptionChanged();
@@ -1876,27 +2128,27 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 	/**
 	 * Zoom in.
 	 */
-	zoomIn: function(step)
+	zoomIn: function(step, zoomCenterCoord)
 	{
 		var curr = this.getCurrZoom();
 		var ratio = ZU.getNextZoomInRatio(curr, step || 1);
-		return this.zoomTo(ratio);
+		return this.zoomTo(ratio, null, zoomCenterCoord);
 	},
 	/**
 	 * Zoom out.
 	 */
-	zoomOut: function(step)
+	zoomOut: function(step, zoomCenterCoord)
 	{
 		var curr = this.getCurrZoom();
 		var ratio = ZU.getNextZoomOutRatio(curr, step || 1);
-		return this.zoomTo(ratio);
+		return this.zoomTo(ratio, null, zoomCenterCoord);
 	},
 	/**
 	 * Reset to normal size.
 	 */
-	resetZoom: function()
+	resetZoom: function(zoomCenterCoord)
 	{
-		return this.zoomTo(this.getInitialZoom() || 1);
+		return this.zoomTo(this.getInitialZoom() || 1, null, zoomCenterCoord);
 	},
 
 	/**
@@ -1933,16 +2185,18 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 		return this;
 	},
 	*/
-	/**
+	/*
 	 * Hide or show all hydrogen atoms in 3D model.
 	 * @param {Int} newType Value from {@link Kekule.Render.Molecule2DDisplayType} or {@link Kekule.Render.Molecule3DDisplayType}.
 	 */
+	/*
 	setHideHydrogens: function(newValue)
 	{
 		this.getDrawOptions().hideHydrogens = newValue;
 		this.drawOptionChanged();
 		return this;
 	},
+	*/
 
 	/**
 	 * Export drawing content in viewer to a data URL for <img> tag to use.
@@ -1967,6 +2221,422 @@ Kekule.ChemWidget.ChemObjDisplayer = Class.create(Kekule.ChemWidget.AbstractWidg
 			this.repaint();
 		}, this);
 		return result;
+	},
+
+	//////////////////////// methods about bound maps ////////////////////////////
+	/** @private */
+	clearBoundMap: function()
+	{
+		this.getBoundInfoRecorder().clear(this.getDrawContext());
+	},
+	/**
+	 * Returns topmost bound item in z-index.
+	 * Descendants may override this method to implement more accurate algorithm.
+	 * @param {Array} boundItems
+	 * @param {Array} excludeObjs Objects in this array will not be returned.
+	 * @returns {Object}
+	 * @private
+	 */
+	findTopmostBoundInfo: function(boundItems, excludeObjs)
+	{
+		if (boundItems && boundItems.length)
+		{
+			var result = null;
+			var index = boundItems.length - 1;
+			result = boundItems[index];
+			while ((index >= 0) && (excludeObjs && (excludeObjs.indexOf(result.obj) >= 0)))
+			{
+				--index;
+				result = boundItems[index];
+			}
+			return result;
+		}
+		else
+			return null;
+	},
+
+	/**
+	 * Returns all bound map item at x/y.
+	 * Input coord is based on the screen coord system.
+	 * @returns {Array}
+	 * @private
+	 */
+	getBoundInfosAtCoord: function(screenCoord, filterFunc, boundInflation)
+	{
+		/*
+		if (!boundInflation)
+			throw 'boundInflation not set!';
+		*/
+		var boundRecorder = this.getBoundInfoRecorder();
+		var delta = boundInflation;
+		//var coord = this.getObjDrawBridge().transformScreenCoordToContext(this.getDrawContext(), screenCoord);
+		var coord = this.screenCoordToContext(screenCoord);
+		var refCoord = (this.getRenderType() === Kekule.Render.RendererType.R3D)? {'x': 0, 'y': 0}: null;
+		var matchedInfos = boundRecorder.getIntersectionInfos(this.getDrawContext(), coord, refCoord, delta, filterFunc);
+		//console.log(coord, delta, matchedInfos);
+		return matchedInfos;
+	},
+
+	/**
+	 * returns the topmost bound map item at x/y.
+	 * Input coord is based on the screen coord system.
+	 * @param {Hash} screenCoord
+	 * @param {Array} excludeObjs Objects in this array will not be returned.
+	 * @returns {Object}
+	 */
+	getTopmostBoundInfoAtCoord: function(screenCoord, excludeObjs, boundInflation)
+	{
+		return this.findTopmostBoundInfo(this.getBoundInfosAtCoord(screenCoord, null, boundInflation), excludeObjs, boundInflation);
+	},
+
+	/**
+	 * Returns all basic drawn object at coord (with inflation) based on screen system.
+	 * @params {Hash} screenCoord
+	 * @param {Number} boundInflation
+	 * @param {Array} excludeObjs
+	 * @param {Array} filterObjClasses If this param is set, only obj match these types will be returned
+	 * @returns {Array}
+	 * @private
+	 */
+	getBasicObjectsAtCoord: function(screenCoord, boundInflation, excludeObjs, filterObjClasses)
+	{
+		var boundInfos = this.getBoundInfosAtCoord(screenCoord, null, boundInflation);
+		var result = [];
+		if (boundInfos)
+		{
+			if (excludeObjs)
+			{
+				boundInfos = AU.filter(boundInfos, function(boundInfo){
+					var obj = boundInfos[i].obj;
+					if (!obj)
+						return false;
+					if (obj)
+					{
+						if (excludeObjs && excludeObjs.indexOf(obj) >= 0)
+							return false;
+					}
+					return true;
+				});
+			}
+
+			for (var i = boundInfos.length - 1; i >= 0; --i)
+			{
+				var obj = boundInfos[i].obj;
+				if (obj)
+				{
+					if (excludeObjs && excludeObjs.indexOf(obj) >= 0)
+						continue;
+				}
+				result.push(obj);
+			}
+
+			if (result && filterObjClasses)  // filter
+			{
+				result = AU.filter(result, function(obj)
+				{
+					for (var i = 0, l = filterObjClasses.length; i < l; ++i)
+					{
+						if (obj instanceof filterObjClasses[i])
+							return true;
+					}
+					return false;
+				});
+			}
+		}
+
+		return result;
+	},
+	/**
+	 * Returns the topmost basic drawn object at coord based on screen system.
+	 * @params {Hash} screenCoord
+	 * @param {Number} boundInflation
+	 * @param {Array} filterObjClasses If this param is set, only obj match these types will be returned
+	 * @returns {Object}
+	 * @private
+	 */
+	getTopmostBasicObjectAtCoord: function(screenCoord, boundInflation, filterObjClasses)
+	{
+		var objs = this.getBasicObjectsAtCoord(screenCoord, boundInflation, null, filterObjClasses);
+		return objs && objs[0];
+	},
+
+	// Coord translate methods
+	/**
+	 * Translate coord to value of another coord system.
+	 * @param {Hash} coord
+	 * @param {Int} fromSys
+	 * @param {Int} toSys
+	 */
+	translateCoord: function(coord, fromSys, toSys)
+	{
+		if (!coord)
+			return null;
+		var S = Kekule.Render.CoordSystem;
+		if (fromSys === S.SCREEN)
+		{
+			if (toSys === S.SCREEN)
+				return coord;
+			else if (toSys === S.CONTEXT)
+				return this.getDrawBridge()? this.getDrawBridge().transformScreenCoordToContext(this.getDrawContext(), coord): coord;
+			else  // S.OBJ
+			{
+				var contextCoord = this.getDrawBridge()? this.getDrawBridge().transformScreenCoordToContext(this.getDrawContext(), coord): coord;
+				return this.getDrawContext()? this.getRootRenderer().transformCoordToObj(this.getDrawContext(), this.getChemObj(), contextCoord): coord;
+			}
+		}
+		else if (fromSys === S.CONTEXT)
+		{
+			if (toSys === S.SCREEN)
+				return this.getDrawBridge()? this.getDrawBridge().transformContextCoordToScreen(this.getDrawContext(), coord): coord;
+			else if (toSys === S.CONTEXT)
+				return coord;
+			else  // S.OBJ
+				return this.getDrawContext()? this.getRootRenderer().transformCoordToObj(this.getDrawContext(), this.getChemObj(), coord): coord;
+		}
+		else  // fromSys === S.OBJ
+		{
+			if (toSys === S.SCREEN)
+			{
+				var contextCoord = this.getRootRenderer().transformCoordToContext(this.getDrawContext(), this.getChemObj(), coord);
+				return this.getDrawBridge()? this.getDrawBridge().transformContextCoordToScreen(this.getDrawContext(), contextCoord): coord;
+			}
+			else if (toSys === S.CONTEXT)
+				return this.getDrawContext()? this.getRootRenderer().transformCoordToContext(this.getDrawContext(), this.getChemObj(), coord): coord;
+			else  // S.OBJ
+				return coord;
+		}
+	},
+	/**
+	 * Translate a distance value to a distance in another coord system.
+	 * @param {Hash} coord
+	 * @param {Int} fromSys
+	 * @param {Int} toSys
+	 */
+	translateDistance: function(distance, fromSys, toSys)
+	{
+		var coord0 = {'x': 0, 'y': 0, 'z': 0};
+		var coord1 = {'x': distance, 'y': 0, 'z': 0};
+		var transCoord0 = this.translateCoord(coord0, fromSys, toSys);
+		var transCoord1 = this.translateCoord(coord1, fromSys, toSys);
+		return Kekule.CoordUtils.getDistance(transCoord0, transCoord1);
+	},
+	/**
+	 * Turn obj coord to context one.
+	 * @param {Hash} objCoord
+	 * @returns {Hash}
+	 */
+	objCoordToContext: function(objCoord)
+	{
+		var S = Kekule.Render.CoordSystem;
+		return this.translateCoord(objCoord, S.CHEM, S.CONTEXT);
+	},
+	/**
+	 * Turn context coord to obj one.
+	 * @param {Hash} contextCoord
+	 * @returns {Hash}
+	 */
+	contextCoordToObj: function(contextCoord)
+	{
+		var S = Kekule.Render.CoordSystem;
+		return this.translateCoord(contextCoord, S.CONTEXT, S.CHEM);
+	},
+	/**
+	 * Turn obj coord to screen one.
+	 * @param {Hash} objCoord
+	 * @returns {Hash}
+	 */
+	objCoordToScreen: function(objCoord)
+	{
+		var S = Kekule.Render.CoordSystem;
+		return this.translateCoord(objCoord, S.CHEM, S.SCREEN);
+	},
+	/**
+	 * Turn screen coord to obj one.
+	 * @param {Hash} contextCoord
+	 * @returns {Hash}
+	 */
+	screenCoordToObj: function(screenCoord)
+	{
+		var S = Kekule.Render.CoordSystem;
+		return this.translateCoord(screenCoord, S.SCREEN, S.CHEM);
+	},
+
+	/**
+	 * Turn screen based coord to context one.
+	 * @param {Hash} screenCoord
+	 * @returns {Hash}
+	 */
+	screenCoordToContext: function(screenCoord)
+	{
+		var S = Kekule.Render.CoordSystem;
+		return this.translateCoord(screenCoord, S.SCREEN, S.CONTEXT);
+	},
+	/**
+	 * Turn context based coord to screen one.
+	 * @param {Hash} screenCoord
+	 * @returns {Hash}
+	 */
+	contextCoordToScreen: function(screenCoord)
+	{
+		var S = Kekule.Render.CoordSystem;
+		return this.translateCoord(screenCoord, S.CONTEXT, S.SCREEN);
+	},
+
+	/**
+	 * Turn box coords based on screen system to context one.
+	 * @param {Hash} screenCoord
+	 * @returns {Hash}
+	 */
+	screenBoxToContext: function(screenBox)
+	{
+		var coord1 = this.screenCoordToContext({'x': screenBox.x1, 'y': screenBox.y1});
+		var coord2 = this.screenCoordToContext({'x': screenBox.x2, 'y': screenBox.y2});
+		return {'x1': coord1.x, 'y1': coord1.y, 'x2': coord2.x, 'y2': coord2.y};
+	},
+
+	///////////////////////////////////////////////////////
+
+	////// methods about sub views  ///////////////////////
+
+	/**
+	 * Clear and finalize all sub views in displayer.
+	 */
+	clearSubViews: function()
+	{
+		var subviews = this.getSubViews();
+		if (subviews)
+		{
+			for (var i = 0, l = subviews.length; i < l; ++i)
+			{
+				subviews[i].finalize();
+			}
+		}
+		this.setPropStoreFieldValue('subViews', undefined);
+	},
+	/**
+	 * Iterate function on all sub views of displayer.
+	 * @param {Function} func Has params (subView, index).
+	 */
+	iterateSubViews: function(func)
+	{
+		var subviews = this.getSubViews();
+		if (subviews)
+		{
+			for (var i = 0, l = subviews.length; i < l; ++i)
+			{
+				func(subviews[i], i);
+			}
+		}
+		return this;
+	},
+	/**
+	 * Get the sub view object for a targetObj.
+	 * @param {Kekule.ChemObject} targetObj
+	 * @param {CLass} subViewClass
+	 * @returns {Kekule.ChemWidget.ChemObjDisplayerSubView}
+	 */
+	getSubView: function(targetObj, subViewClass, canCreate)
+	{
+		var result;
+		var subviews = this.getSubViews();
+		if (subviews)
+		{
+			for (var i = 0, l = subviews.length; i < l; ++i)
+			{
+				var subview = subviews[i];
+				if (subview.getTarget() === targetObj && (subview instanceof subViewClass))
+				{
+					result = subview;
+					break;
+				}
+			}
+		}
+		if (!result && canCreate)  // not found, create new
+		{
+			var proto = ClassEx.getPrototype(subViewClass);
+			if (proto.appliableToTarget(targetObj))
+			{
+				result = new subViewClass(this, targetObj);
+				this.getSubViews(true).push(result);
+			}
+		}
+		return result;
+	},
+	/**
+	 * Get the sub view object for a targetObj. If such a sub view does not exist, a new one will be created.
+	 * @param {Kekule.ChemObject} targetObj
+	 * @param {CLass} subViewClass
+	 * @returns {Kekule.ChemWidget.ChemObjDisplayerSubView}
+	 */
+	fetchSubView: function(targetObj, subViewClass)
+	{
+		return this.getSubView(targetObj, subViewClass, true);
+	}
+
+	///////////////////////////////////////////////////////
+});
+
+/**
+ * Base class for sub view classes for displayer.
+ * User should not use this class directly, the concrete descandants should be used instead.
+ * Sub view provide a way to extend the ability of its parent widget, focusing on one specified object inside {@link Kekule.ChemWidget.ChemObjDisplayer}.
+ * @class
+ * @augments ObjectEx
+ *
+ * @param {Kekule.ChemWidget.ChemObjDisplayer} displayer The parent displayer widget.
+ * @param {Kekule.ChemObject} target The target object inside displayer of this sub view.
+ *
+ * @property {Kekule.ChemWidget.ChemObjDisplayer} displayer The parent displayer widget.
+ * @property {Kekule.ChemObject} target The target object inside displayer of this sub view.
+ */
+Kekule.ChemWidget.ChemObjDisplayerSubView = Class.create(ObjectEx,
+/** @lends Kekule.ChemWidget.ChemObjDisplayerSubView# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemWidget.ChemObjDisplayerSubView',
+	/** @constructs */
+	initialize: function(displayer, targetObj)
+	{
+		this.tryApplySuper('initialize');
+		this.setPropStoreFieldValue('parent', displayer);
+		this.setPropStoreFieldValue('target', targetObj);
+	},
+	/** @private */
+	initProperties: function()
+	{
+		this.defineProp('parent', {
+			'dataType': 'Kekule.ChemWidget.ChemObjDisplayer',
+			'serializable': false,
+			'setter': null
+		});
+		// the target object
+		this.defineProp('target', {
+			'dataType': 'Kekule.ChemObject',
+			'serializable': false,
+			'getter': function() { return this.getPropStoreFieldValue('target') || this.getParent().getChemObj(); }
+		});
+	},
+	/** @ignore */
+	initPropValues: function()
+	{
+		this.tryApplySuper('initPropValues');
+		this.setBubbleEvent(true);
+	},
+	/** @ignore */
+	getHigherLevelObj: function()
+	{
+		return this.getParent();
+	},
+	/**
+	 * Returns whether this type of sub view class can be applied to a object.
+	 * Descendants should override this method.
+	 * @param {Kekule.ChemObject} obj
+	 * @returns {Bool}
+	 * @private
+	 */
+	appliableToTarget: function(obj)
+	{
+		return false;
 	}
 });
 
@@ -2265,6 +2935,7 @@ Kekule.ChemWidget.ActionDisplayerLoadData = Class.create(Kekule.ChemWidget.Actio
 	{
 		var self = this;
 		var dialog = this.getDataDialog();
+		dialog.setPropStoreFieldValue('defaultFormatId', this.getDisplayer().getDefaultInputFormatId());
 		dialog.setAllowedFormatIds(this.getDisplayer().getAllowedInputFormatIds() || Kekule.IO.ChemDataReaderManager.getAllReadableFormatIds());
 
 		var formatSelector = dialog._formatSelector;
@@ -2295,10 +2966,11 @@ Kekule.ChemWidget.ActionDisplayerLoadData = Class.create(Kekule.ChemWidget.Actio
 					//self.doLoadToDisplayer(dialog.getChemObj(), dialog);
 					var dataDetails = dialog.getDataDetails() || {};
 					var displayer = self.getDisplayer();
-					displayer.loadFromData(dataDetails.data, dataDetails.mimeType, dataDetails.fileName);
+					//displayer.loadFromData(dataDetails.data, dataDetails.mimeType, dataDetails.fileName, dataDetails.formatId);
+					self.doLoadInDisplayer(displayer, dataDetails, dialog);
 				}
 			}, target, showType]);
-	}
+	},
 	/* @private */
 	/*
 	doLoadToDisplayer: function(chemObj, dialog)
@@ -2309,6 +2981,11 @@ Kekule.ChemWidget.ActionDisplayerLoadData = Class.create(Kekule.ChemWidget.Actio
 		});
 	}
 	*/
+	/** @private */
+	doLoadInDisplayer: function(displayer, dataDetails, dialog)
+	{
+		return displayer.loadFromData(dataDetails.data, dataDetails.mimeType, dataDetails.fileName, dataDetails.formatId);
+	}
 });
 
 /**
@@ -2472,6 +3149,7 @@ Kekule.ChemWidget.ActionDisplayerSaveFile = Class.create(Kekule.ChemWidget.Actio
 				if (sFileExt)
 					text += ' (' + sFileExt + ')';
 				var selected = srcFormat? (formatIds[i] === srcFormat):
+					this.getDisplayer().getDefaultOutputFormatId()? (formatIds[i] === this.getDisplayer().getDefaultOutputFormatId()):
 					this.getLastFormat()? (this.getLastFormat() === formatIds[i]):
 					i === 0;
 				result.push({
@@ -2801,6 +3479,7 @@ Kekule.ChemWidget.ActionDisplayerHideHydrogens = Class.create(Kekule.ChemWidget.
 		var displayer = this.getDisplayer();
 		var flag = displayer && (displayer.getRenderType() === Kekule.Render.RendererType.R3D);
 		this.setDisplayed(/*this.getDisplayed() &&*/ flag).setEnabled(this.getEnabled() && flag);
+		this.setChecked(displayer && displayer.getHideHydrogens());
 	},
 	/** @private */
 	doExecute: function()
@@ -3032,6 +3711,47 @@ Kekule.ChemWidget.ActionDisplayerChangeMolDisplayTypeSpaceFill = Class.create(Ke
 });
 /** @Ignore */
 Kekule.ChemWidget.ActionDisplayerChangeMolDisplayTypeSpaceFill.TYPE = Kekule.Render.Molecule3DDisplayType.SPACE_FILL;
+
+/**
+ * Action to automatically generate coordinates and layout atoms in 2D or 3D mode displayer.
+ * @class
+ * @augments Kekule.ChemWidget.ActionOnDisplayer
+ */
+Kekule.ChemWidget.ActionDisplayerAutoGenerateCoordsForMolecule = Class.create(Kekule.ChemWidget.ActionOnDisplayer,
+/** @lends Kekule.ChemWidget.ActionDisplayerAutoGenerateCoordsForMolecule# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.ChemWidget.ActionDisplayerAutoGenerateCoordsForMolecule',
+	/** @private */
+	HTML_CLASSNAME: CCNS.ACTION_MOL_AUTO_COORD_GENERATION,
+	/** @constructs */
+	initialize: function(displayer)
+	{
+		this.tryApplySuper('initialize', [displayer, Kekule.$L('ChemWidgetTexts.CAPTION_AUTO_COORD_GENERATION'), Kekule.$L('ChemWidgetTexts.HINT_AUTO_COORD_GENERATION')]);
+	},
+	/** @private */
+	getCoordMode: function()
+	{
+		/*
+		var displayer = this.getDisplayer();
+		return displayer && displayer.getCoordMode();
+		*/
+		return null;
+	},
+	/** @private */
+	doUpdate: function()
+	{
+		this.tryApplySuper('doUpdate');
+		var displayer = this.getDisplayer();
+		var flag = this.getEnabled() && !!(displayer.canAutoGenerateCoordForChemObj(displayer.getChemObj(), Kekule.oneOf(this.getCoordMode(), displayer.getCoordMode())));
+		this.setDisplayed(flag).setEnabled(flag);
+	},
+	/** @private */
+	doExecute: function()
+	{
+		this.getDisplayer().autoGenerateChemObjCoords();
+	}
+});
 
 
 })();

@@ -25,6 +25,7 @@ class kekulejs_configs
     //const DEF_MOL_COMPARER_URL = 'http://127.0.0.1:3000/mols/compare';
 
     const DEF_KEKULE_DIR = '/local/kekulejs/';
+    const DEF_ENABLE_3D_VIEWER = true;
     //const DEF_KEKULE_JS_DIR = '/local/kekule.js/scripts/';
 
     /**
@@ -53,7 +54,7 @@ class kekulejs_configs
      */
     static public function getKekuleScriptDir()
     {
-        return self::getScriptDir() . 'kekule.js.0.9.7.21042802/';
+        return self::getScriptDir() . 'kekule.js.0.9.9.22030500/';
     }
     static public function getAdapterDir()
     {
@@ -118,8 +119,14 @@ class kekulejs_utils
             $p->requires->js($scriptDir . 'raphael-min.js');
             $p->requires->js($scriptDir . 'Three.js');
         	*/
-	        kekulejs_utils::includeSimpleExternalScriptFiles('raphael', $scriptDir . 'raphael-min.js', $p);
-	        kekulejs_utils::includeSimpleExternalScriptFiles('three', $scriptDir . 'Three.js', $p);
+	        //kekulejs_utils::includeSimpleExternalScriptFiles('raphael', $scriptDir . 'raphael-min.js?p=1', $p);
+	        $enableThree3D = get_config('local_kekulejs', 'enable3dviewer');
+	        if (!isset($enableThree3D))
+	        	$enableThree3D = kekulejs_configs::DEF_ENABLE_3D_VIEWER;
+	        if ($enableThree3D)
+	            kekulejs_utils::includeSimpleExternalScriptFiles('three', $scriptDir . 'Three.js?p=1', $p);  // with '?' suffix, avoid loading of Three.js.js
+	        else
+		        kekulejs_utils::includeSimpleExternalScriptFiles('three', $scriptDir . 'empty.js?p=1', $p);  // empty
             //$p->requires->js($kekuleScriptDir . 'kekule.js?' . $params);
 	        //kekulejs_utils::includeSimpleExternalScriptFiles('kekule', $kekuleScriptDir . 'kekule.js?' . $params, $p);
 	        kekulejs_utils::includeSimpleExternalScriptFiles('kekule', $kekuleScriptDir . 'kekule.min.js?' . $params, $p);
@@ -214,5 +221,13 @@ class kekulejs_utils
         {
             // do nothing, just avoid exception
         }
+    }
+
+    static public function includeAllKekulejsFiles($page = null)
+    {
+	    kekulejs_utils::includeKekuleCssFiles();
+	    kekulejs_utils::includeAdapterCssFiles();
+	    kekulejs_utils::includeKekuleJsFiles();
+	    kekulejs_utils::includeAdapterJsFiles();
     }
 }

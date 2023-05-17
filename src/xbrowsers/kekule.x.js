@@ -16,7 +16,7 @@
 
 "use strict";
 
-if (typeof(window) !== undefined)  // has window object
+if (typeof(window) !== 'undefined')  // has window object
 	$root = window;
 
 var	win = $root, document = win && win.document;
@@ -124,7 +124,9 @@ Kekule.BrowserFeature = {
 	draggable: (function() {
 		var div = document.createElement('div');
 		return ('draggable' in div) || ('ondragstart' in div && 'ondrop' in div);
-	})()
+	})(),
+
+	webAssembly: (typeof(win.WebAssembly) === 'object' && typeof(win.WebAssembly.instantiate) === 'function')
 };
 
 }   // end of browser detect part

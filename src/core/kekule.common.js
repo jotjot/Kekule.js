@@ -58,6 +58,8 @@ if (Kekule.PROP_AUTO_TITLE)
 Kekule.ExceptionLevel = {
 	/** Fatal error, usually cause the stop of program execution. */
 	ERROR: -1,
+	/** Error but not fatal, the program can still run but need to display the error message to user. */
+	NOT_FATAL_ERROR: -10,
 	/** Serious exception, but the program can still run. */
 	WARNING: -2,
 	/** Minor exception, user usually need not to know about it. */
@@ -71,7 +73,7 @@ Kekule.ExceptionLevel = {
 	getAllLevels: function()
 	{
 		var EL = Kekule.ExceptionLevel;
-		return [EL.ERROR, EL.WARNING, EL.NOTE, EL.LOG];
+		return [EL.ERROR, EL.NOT_FATAL_ERROR, EL.WARNING, EL.NOTE, EL.LOG];
 	},
 	/**
 	 * Returns a string identity for exception level.
@@ -81,7 +83,7 @@ Kekule.ExceptionLevel = {
 	levelToString: function(level)
 	{
 		var EL = Kekule.ExceptionLevel;
-		return (level === EL.ERROR)? 'error':
+		return (level === EL.ERROR || level === EL.NOT_FATAL_ERROR)? 'error':
 			(level === EL.WARNING)? 'warning':
 			(level === EL.NOTE)? 'note':
 			'log';
@@ -116,7 +118,8 @@ Kekule.throwException = function(e, exceptionLevel)
 			{
 				if (typeof(e) !== 'string')
 					e = e.message;
-				var method = (exceptionLevel === EL.WARNING)? console.warn:
+				var method = (exceptionLevel === EL.NOT_FATAL_ERROR)? console.error:
+					(exceptionLevel === EL.WARNING)? console.warn:
 					(exceptionLevel === EL.NOTE)? console.info:
 					console.log;
 				if (method)
@@ -147,9 +150,9 @@ Kekule.getExceptionMsg = function(e)
  */
 Kekule.raise = Kekule.throwException;
 /**
- * Throw an {@link Kekule.Error} in ExceptionHandler.
+ * Throw an {@link Kekule.ExceptionLevel.Error} or {@link Kekule.ExceptionLevel.NOT_FATAL_ERROR} in ExceptionHandler.
  */
-Kekule.error = function(e)
+Kekule.error = function(e, notFatal)
 {
 	/*
 	if (typeof(e) == 'string')
@@ -159,12 +162,13 @@ Kekule.error = function(e)
 	else
 		throw e;
 	*/
-	return Kekule.raise(e, Kekule.ExceptionLevel.ERROR);
+	var level = notFatal? Kekule.ExceptionLevel.NOT_FATAL_ERROR: Kekule.ExceptionLevel.ERROR;
+	return Kekule.raise(e, level);
 };
 /**
  * Throw an {@link Kekule.ChemError} in ExceptionHandler.
  */
-Kekule.chemError = function(e)
+Kekule.chemError = function(e, notFatal)
 {
 	if (typeof(e) == 'string')
 		e = new Kekule.ChemError(e);
@@ -174,7 +178,7 @@ Kekule.chemError = function(e)
 	else
 		throw e;
 	*/
-	return Kekule.error(e);
+	return Kekule.error(e, notFatal);
 };
 
 /**
@@ -742,6 +746,18 @@ Kekule.CoordMode = {
 };
 
 /**
+ * Enumeration of the anchor point position of a chem object.
+ * @enum
+ */
+Kekule.ObjAnchorPosition = {
+	/** At the corner of object box (e.g., top left corner of 2D box). */
+	CORNER: 0,
+	/** At the center of object box. */
+	CENTER: 1,
+	DEFAULT: 0
+};
+
+/**
  * Class to help to define some classes with similar interfaces.
  * @class
  * @@private
@@ -1128,6 +1144,17 @@ Kekule.ClassDefineUtils = {
 	CommonCoordMethods:
 	/** @lends Kekule.ClassDefineUtils.CommonCoordMethods# */
 	{
+		/**
+		 * Returns the anchor position of this object.
+		 * @param {Int} coordMode
+		 * @returns {Int} Value from {@link Kekule.ObjAnchorPosition}
+		 */
+		getObjAnchorPosition: function(coordMode)
+		{
+			var result = this.doGetObjAnchorPosition && this.doGetObjAnchorPosition(coordMode);
+			result = result || Kekule.ObjAnchorPosition.DEFAULT;
+			return result;
+		},
 		/**
 		 * Returns the parent object that influences the abs coord of this object.
 		 * @param {Int} coordMode
@@ -2022,7 +2049,7 @@ ClassEx.defineProp(ObjectEx, 'predefinedSetting', {'dataType': DataType.STRING,
 				{
 					var cname = ClassEx.getClassName(currClass);
 					var sname = cname + '.' + v;
-					var setting = Kekule.ObjPropSettingManager.getSetting(sname);
+					setting = Kekule.ObjPropSettingManager.getSetting(sname);
 					currClass = ClassEx.getSuperClass(currClass);
 				}
 
@@ -2136,6 +2163,13 @@ Kekule.ObjComparer = {
 		var D = DataType;
 		if (v1 === v2)
 			return 0;
+		var type1 = D.getType(v1);
+		var type2 = D.getType(v2);
+		if (type1 === 'number')  // two float number
+		{
+			if (Kekule.NumUtils.isFloatEqual(v1, v2))
+				return 0;
+		}
 		// the two following comparison handles same type simple values, such as number, bool, string and date
 		if (v1 < v2 && !(v1 > v2))
 			return -1;
@@ -2144,8 +2178,6 @@ Kekule.ObjComparer = {
 		else  // need more complex check
 		{
 			var result = null;  // not determinated
-			var type1 = D.getType(v1);
-			var type2 = D.getType(v2);
 			if (type1 !== type2)  // not same type
 			{
 				var typeIndexes = [
@@ -2188,11 +2220,7 @@ Kekule.ObjComparer = {
 						}
 						else if (type1 === DataType.OBJECT)  // two values are objects
 						{
-							// TODO: not very efficient, need to refine in future
-							var s1 = JSON.toString(v1);
-							var s2 = JSON.toString(v2);
-							result = (s1 < s2)? -1:
-									(s1 > s2)? 1: 0;
+							result = Kekule.ObjComparer._compareHash(v1, v2, options);
 						}
 						else
 							result = null;
@@ -2212,11 +2240,50 @@ Kekule.ObjComparer = {
 			}
 			return result;
 		}
+	},
+	/**
+	 * Compare on two hash values, used for object comparison.
+	 * @param {Hash} v1
+	 * @param {Hash} v2
+	 * @param {Hash} options
+	 * @returns {Int}
+	 * @private
+	 */
+	_compareHash: function(obj1, obj2, options)
+	{
+		var fields1 = Kekule.ObjUtils.getOwnedFieldNames(obj1) || [];
+		var fields2 = Kekule.ObjUtils.getOwnedFieldNames(obj2) || [];
+		var result = fields1.length - fields2.length;
+		if (!result)
+		{
+			fields1.sort();
+			fields2.sort();
+			result = Kekule.ArrayUtils.compare(fields1, fields2);
+			if (!result)
+			{
+				for (var i = 0, l = fields1.length; i < l; ++i)
+				{
+					var key = fields1[i];
+					var value1 = obj1[key];
+					var value2 = obj2[key];
+					result = Kekule.ObjComparer.compare(value1, value2, options);
+					if (result)
+					{
+						console.log(key, result, value1, value2);
+						break;
+					}
+				}
+			}
+		}
+		return result;
 	}
 };
 
 /** @ignore */
 var S_PREFIX_OBJ_REF = '@';  // internal const
+//var S_PREFIX_OBJ_REF_BY_OWNER = '@@';  // internal const
+//var S_PREFIX_OBJ_REF_BY_PARENT = '@P';  // internal const
+//var S_PREFIX_OBJ_REF_BY_PARENTROOT = '@R';  // internal const
 /**
  * Root class for all object related to chemistry in Kekule library.
  * @class
@@ -2283,6 +2350,7 @@ Kekule.ChemObject = Class.create(ObjectEx,
 
 		this.__load_owner_objRef_props__ = null;  // used internally
 		this.__load_parent_objRef_props__ = null;  // used internally
+		this.__load_parentRoot_objRef_props__ = null; // used internally
 
 		// react on change (both on self and children)
 		// when object is modified,clear srcInfo information
@@ -2330,6 +2398,7 @@ Kekule.ChemObject = Class.create(ObjectEx,
 		*/
 		this.__load_owner_objRef_props__ = null;
 		this.__load_parent_objRef_props__ = null;
+		this.__load_parentRoot_objRef_props__ = null;
 		this.setPropStoreFieldValue('attachedCoordStickNodes', null);
 		this.removeSelf();
 		this.tryApplySuper('doFinalize')  /* $super() */;
@@ -2477,7 +2546,10 @@ Kekule.ChemObject = Class.create(ObjectEx,
 	 */
 	_parentObjectLoaded: function(parent)
 	{
-		this._handleObjRefProps(parent, this.__load_parent_objRef_props__);
+		// now do nothing here
+		//this._handleObjRefProps(parent, this.__load_parent_objRef_props__);
+		// and we can ensure that the root parent is ready now
+		//this._handleObjRefProps(parent, this.__load_parentRoot_objRef_props__);
 	},
 
 	/**
@@ -2488,21 +2560,25 @@ Kekule.ChemObject = Class.create(ObjectEx,
 	 */
 	_ownerObjectLoaded: function(owner)
 	{
-		this._handleObjRefProps(owner, this.__load_owner_objRef_props__);
+		// now do nothing here
+		//this._handleObjRefProps(owner, this.__load_owner_objRef_props__);
 	},
 
 	/** @private */
-	_handleObjRefProps: function(rootObj, refValueStorage)
+	_handleObjRefProps: function(rootStorageObj, refValueStorage)
 	{
 		var objRefPropInfo = refValueStorage;  // this.__load_owner_objRef_props__;
 		if (objRefPropInfo)
 		{
-			if (rootObj && rootObj.getChildAtIndexStack)
+			//if (rootStorageObj && rootStorageObj.getChildAtIndexStack)
 			{
 				var propNames = Kekule.ObjUtils.getOwnedFieldNames(objRefPropInfo);
 				for (var i = 0, l = propNames.length; i < l; ++i)
 				{
 					var propName = propNames[i];
+					var propInfo = this.getPropInfo(propName);
+					var objRefInfo = this._doGetPropObjRefObjInfo(this, propInfo, rootStorageObj);
+					var actualRootObj = objRefInfo.rootObj;
 					var objRefValue = objRefPropInfo[propName];
 					if (DataType.isArrayValue(objRefValue))
 					{
@@ -2512,7 +2588,8 @@ Kekule.ChemObject = Class.create(ObjectEx,
 							var indexStack = this._doUnwrapObjRefSerializationStr(this, objRefValue[i]);
 							if (indexStack)
 							{
-								var obj = rootObj.getChildAtIndexStack(indexStack);
+								//var actualRootObj = this._doRetrieveObjRefRootObjByName(this, indexStack._objRefRoot || '') || rootStorageObj;
+								var obj = actualRootObj.getChildAtIndexStack(indexStack);
 								values.push(obj);
 							}
 							else
@@ -2526,7 +2603,10 @@ Kekule.ChemObject = Class.create(ObjectEx,
 						var value;
 						var indexStack = this._doUnwrapObjRefSerializationStr(this, objRefValue);
 						if (indexStack)
-							value = rootObj.getChildAtIndexStack(indexStack);
+						{
+							//var actualRootObj = this._doRetrieveObjRefRootObjByName(this, indexStack._objRefRoot || '') || rootStorageObj;
+							value = actualRootObj.getChildAtIndexStack(indexStack);
+						}
 						else  // not a obj ref str, do nothing currently
 							;
 						if (value)
@@ -2551,7 +2631,7 @@ Kekule.ChemObject = Class.create(ObjectEx,
 
 	// custom save / load method
 	/** @private */
-	doSaveProp: function(obj, prop, storageNode, serializer)
+	doSaveProp: function(obj, prop, storageNode, options, serializer, rootStorageObj, rootStorageNode, handledObjs)
 	{
 		/*
 		if (prop.name === 'testRefObj')
@@ -2564,37 +2644,44 @@ Kekule.ChemObject = Class.create(ObjectEx,
 			var isObjRefProp = !!prop.objRef;
 			if (isObjRefProp)  // this property is an object reference, refers to another object(s) in this chem space
 			{
+				/*
 				var objRefRootOnParent = (prop.objRefRoot === 'parent');
 				var rootObj = objRefRootOnParent? obj.getParent(): obj.getOwner(); // default is based on owner
-				if (rootObj)
+				*/
+				var objRefInfo = obj._doGetPropObjRefObjInfo(obj, prop, rootStorageObj);
+				if (objRefInfo)
 				{
-					var value = obj.getPropValue(prop.name);
-					if (value)
+					var rootObj = objRefInfo.rootObj;
+					if (rootObj)
 					{
-						if (Kekule.ArrayUtils.isArray(value))  // maybe an array of object references
+						var value = obj.getPropValue(prop.name);
+						if (value)
 						{
-							//if (prop.dataType === DataType.ARRAY)
+							if (Kekule.ArrayUtils.isArray(value))  // maybe an array of object references
 							{
-								var serializationValues = [];
-								for (var i = 0, l = value.length; i < l; ++i)
+								//if (prop.dataType === DataType.ARRAY)
 								{
-									var sv = obj._doGetObjRefSerializationValue(rootObj, obj, value[i]);
-									if (sv)
-										serializationValues.push(sv);
-									else
-										serializationValues.push(value[i]);  // those who can not be transformed, keep it
+									var serializationValues = [];
+									for (var i = 0, l = value.length; i < l; ++i)
+									{
+										var sv = obj._doGetObjRefSerializationValue(rootObj, obj, value[i], objRefInfo.objRefRoot);
+										if (sv)
+											serializationValues.push(sv);
+										else
+											serializationValues.push(value[i]);  // those who can not be transformed, keep it
+									}
+									serializer.doSaveFieldValue(obj, prop.name, serializationValues, storageNode, serializer.getValueExplicitType(serializationValues), options, rootObj, rootStorageNode, handledObjs);
+									return true;
 								}
-								serializer.doSaveFieldValue(obj, prop.name, serializationValues, storageNode, serializer.getValueExplicitType(serializationValues));
-								return true;
 							}
-						}
-						else // single object reference
-						{
-							var serializationValue = obj._doGetObjRefSerializationValue(rootObj, obj, value);
-							if (serializationValue)
+							else // single object reference
 							{
-								serializer.doSaveFieldValue(obj, prop.name, serializationValue, storageNode, serializer.getValueExplicitType(serializationValue));
-								return true;  // handled, do not save again in default action
+								var serializationValue = obj._doGetObjRefSerializationValue(rootObj, obj, value, objRefInfo.objRefRoot);
+								if (serializationValue)
+								{
+									serializer.doSaveFieldValue(obj, prop.name, serializationValue, storageNode, serializer.getValueExplicitType(serializationValue), options, rootObj, rootStorageNode, handledObjs);
+									return true;  // handled, do not save again in default action
+								}
 							}
 						}
 					}
@@ -2603,20 +2690,26 @@ Kekule.ChemObject = Class.create(ObjectEx,
 		}
 	},
 	/** @private */
-	_doGetObjRefSerializationValue: function(owner, currObj, objRef)
+	_doGetObjRefSerializationValue: function(rootObj, currObj, objRef, objRefRootName)
 	{
-		var indexStack = owner.indexStackOfChild(objRef);
+		var indexStack = rootObj.indexStackOfChild && rootObj.indexStackOfChild(objRef);
 		//console.log('indexStack', indexStack);
 		if (indexStack && indexStack.length)
 		{
-			var str = S_PREFIX_OBJ_REF + JSON.stringify(indexStack);
+			/*
+			var prefix = (objRefRootName == 'parent')? S_PREFIX_OBJ_REF_BY_PARENT:
+				(objRefRootName == 'parentRoot')? S_PREFIX_OBJ_REF_BY_PARENTROOT:
+				S_PREFIX_OBJ_REF_BY_OWNER;
+			*/
+			var prefix = S_PREFIX_OBJ_REF;
+			var str = prefix + JSON.stringify(indexStack);
 			return str;
 		}
 		else
 			return null;
 	},
 	/** @private */
-	doLoadProp: function(obj, prop, storageNode, serializer)
+	doLoadProp: function(obj, prop, storageNode, serializer, rootObj, rootStorageNode, handledObjs)
 	{
 		if (!prop.serializable)
 			return;
@@ -2626,36 +2719,69 @@ Kekule.ChemObject = Class.create(ObjectEx,
 			var isObjRefProp = !!prop.objRef;
 			if (isObjRefProp)  // this property is an object reference, refers to another object(s) in this chem space
 			{
+				/*
 				var objRefRootOnParent = (prop.objRefRoot === 'parent');
 				var storageObj = objRefRootOnParent? obj.__load_parent_objRef_props__: obj.__load_owner_objRef_props__; // default is based on owner
-				if (!storageObj)
-				{
-					storageObj = {};
-					if (objRefRootOnParent)
-						obj.__load_parent_objRef_props__ = storageObj;
-					else
-						obj.__load_owner_objRef_props__ = storageObj;
-				}
+				*/
 				// retrieve the ref str first
-				var value = serializer.doLoadFieldValue(obj, prop.name, storageNode /*, DataType.STRING*/);
+				var value = serializer.doLoadFieldValue(obj, prop.name, storageNode, null/*, DataType.STRING*/, rootObj, rootStorageNode, handledObjs);
 				if (value)
 				{
-					if (typeof(value) === 'string' && value.startsWith(S_PREFIX_OBJ_REF))  // maybe a reference string
+					var objRefInfo = obj._doGetPropObjRefObjInfo && obj._doGetPropObjRefObjInfo(obj, prop, rootStorageNode);
+					var storageObjName = objRefInfo.storageObjName;
+					var storageObj = obj[storageObjName];
+					if (!storageObj)
 					{
-						//var indexStack = this._doUnwrapObjRefSerializationStr(obj, prop, value);
-						//if (indexStack)
-						{
-							storageObj[prop.name] = value;  // save this index stack string, and set the real object after the chem space is loaded
-							return true;    // handled, do not load again in default action
-						}
+						storageObj = {};
+						obj[storageObjName] = storageObj;
 					}
-					else if (DataType.isArrayValue(value))  // may be an ref array
+					storageObj[prop.name] = value;  // save this ref value, and set the real object after the the whole loading process is done
+					return true;    // handled, do not load again in default action
+				}
+				/*
+				var objRefInfo = obj._doGetPropObjRefObjInfo && obj._doGetPropObjRefObjInfo(obj, prop, rootStorageNode);
+				if (objRefInfo)
+				{
+					// retrieve the ref str first
+					//var value = serializer.doLoadFieldValue(obj, prop.name, storageNode, null, rootObj, rootStorageNode, handledObjs);
+					//if (value)
 					{
-						storageObj[prop.name] = value;  // save this index stack array, and set the real object after the chem space is loaded
-						return true;    // handled, do not load again in default action
+						var defStorageObjName = objRefInfo.storageObjName;
+						var storageObjName = defStorageObjName;
+						var serializationStrInfo = obj._doGetObjRefSerializationStrInfo && obj._doGetObjRefSerializationStrInfo(value);
+						if (serializationStrInfo)
+							storageObjName = obj._doGetProObjRefStorageObjNameFromObjRefRootName && obj._doGetProObjRefStorageObjNameFromObjRefRootName(serializationStrInfo.objRefRoot);
+						if (!storageObjName)  // can not determinated from serialized value, use the default
+							storageObjName = objRefInfo.storageObjName;
+						var storageObj = obj[storageObjName];
+						if (!storageObj)
+						{
+							storageObj = {};
+							obj[storageObjName] = storageObj;
+						}
+						// retrieve the ref str first
+						//var value = serializer.doLoadFieldValue(obj, prop.name, storageNode);
+						//if (value)
+						{
+							if (typeof (value) === 'string' && value.startsWith(S_PREFIX_OBJ_REF))  // maybe a reference string
+							{
+								//var indexStack = this._doUnwrapObjRefSerializationStr(obj, prop, value);
+								//if (indexStack)
+								{
+									storageObj[prop.name] = value;  // save this index stack string, and set the real object after the chem space is loaded
+									return true;    // handled, do not load again in default action
+								}
+							}
+							else if (DataType.isArrayValue(value))  // may be an ref array
+							{
+								storageObj[prop.name] = value;  // save this index stack array, and set the real object after the chem space is loaded
+								return true;    // handled, do not load again in default action
+							}
+						}
+						//return true;  // handled, do not load again in default action
 					}
 				}
-				//return true;  // handled, do not load again in default action
+			  */
 			}
 		}
 	},
@@ -2664,10 +2790,22 @@ Kekule.ChemObject = Class.create(ObjectEx,
 	{
 		try
 		{
-			var jsonStr = serializationStr.substr(1);  // remove leading @
+			/*
+			var info = currObj._doGetObjRefSerializationStrInfo && currObj._doGetObjRefSerializationStrInfo(serializationStr);
+			var jsonStr;
+			if (info)
+				jsonStr = serializationStr.substr(info.prefix.length);  // remove leading prefix
+			else
+				jsonStr = serializationStr.substr(S_PREFIX_OBJ_REF.length);  // remove leading @, for backward compatible
+			*/
+			var jsonStr = serializationStr.startsWith(S_PREFIX_OBJ_REF)? serializationStr.substr(S_PREFIX_OBJ_REF.length): serializationStr;
 			var indexStack = JSON.parse(jsonStr);
 			if (DataType.isArrayValue(indexStack))
 			{
+				/*
+				if (info)  // record the objRefRoot info
+					indexStack._objRefRoot = info.objRefRoot;
+				*/
 				return indexStack;
 			}
 			else
@@ -2678,12 +2816,139 @@ Kekule.ChemObject = Class.create(ObjectEx,
 			Kekule.error(e);
 		}
 	},
+	/* @private */
+	/*
+	_doGetObjRefSerializationStrInfo: function(str)
+	{
+		var objRefRoot, prefix;
+		if (str.startsWith(S_PREFIX_OBJ_REF_BY_PARENT))
+		{
+			objRefRoot = 'parent';
+			prefix = S_PREFIX_OBJ_REF_BY_PARENT;
+		}
+		else if (str.startsWith(S_PREFIX_OBJ_REF_BY_PARENTROOT))
+		{
+			objRefRoot = 'parentRoot';
+			prefix = S_PREFIX_OBJ_REF_BY_PARENTROOT;
+		}
+		else if (str.startsWith(S_PREFIX_OBJ_REF_BY_OWNER))
+		{
+			objRefRoot = 'owner';
+			prefix = S_PREFIX_OBJ_REF_BY_OWNER;
+		}
+		else if (str.startsWith(S_PREFIX_OBJ_REF))  // not determinated, or saved by old version of Kekule.js
+		{
+			objRefRoot = 'explicit';
+			prefix = S_PREFIX_OBJ_REF;
+		}
+		else
+		{
+			objRefRoot = null;
+			prefix = '';
+		}
+		return {
+			'prefix': prefix,
+			'objRefRoot': objRefRoot
+		}
+	},
+	*/
+	/* @private */
+	/*
+	_doRetrieveObjRefRootObjByName: function(obj, objRefRootName)
+	{
+		var result = (objRefRootName === 'parent')? (obj.getParent && obj.getParent()):
+			(objRefRootName === 'parentRoot')? (obj.getParentRoot && obj.getParentRoot()):
+			(objRefRootName === 'owner')? (obj.getOwner && obj.getOwner()):
+			null;
+		return result;
+	},
+	*/
+	/* @private */
+	/*
+	_doGetProObjRefStorageObjNameFromObjRefRootName: function(objRefRootName)
+	{
+		var storageObjName = (objRefRootName === 'parent')? '__load_parent_objRef_props__':
+			(objRefRootName === 'owner')? '__load_owner_objRef_props__':
+			(objRefRootName === 'root')? '__load_root_objRef_props__':
+			null;
+		return storageObjName;
+	},
+	*/
+	/** @private */
+	_doGetPropObjRefObjInfo: function(obj, prop, storageRootObj)
+	{
+		var objRefRoot = prop.objRefRoot;
+		var objRefRootOnParent = (objRefRoot === 'parent');
+		var objRefRootOnOwner = (objRefRoot === 'owner');
+		var objRefRootOnStorageRoot = (objRefRoot === 'storageRoot');
+		var rootObj = objRefRootOnParent? (obj.getParent && obj.getParent()):
+			objRefRootOnOwner? (obj.getOwner && obj.getOwner()):
+			objRefRootOnStorageRoot? storageRootObj:
+			null;
+		if (!rootObj)  // determinate smartly, defaultly the owner will be regarded as the ref root
+		{
+			var owner = obj.getOwner && obj.getOwner();
+			if (owner)
+			{
+				objRefRoot = 'owner';
+				objRefRootOnOwner = true;
+				rootObj = owner;
+			}
+			else
+			{
+				objRefRoot = 'storageRoot';
+				objRefRootOnStorageRoot = true;
+				rootObj = storageRootObj;
+			}
+		}
+		/*
+		if (!rootObj && !prop.objRefRoot)  // default setting, determinte root smartly
+		{
+			var owner = obj.getOwner && obj.getOwner();
+			if (owner)
+			{
+				rootObj = owner;
+				objRefRoot = 'owner';
+				objRefRootOnOwner = true;
+			}
+			else
+			{
+				var parentRoot = obj.getParentRoot && obj.getParentRoot();
+				if (parentRoot)
+				{
+					rootObj = parentRoot;
+					objRefRoot = 'parentRoot';
+					objRefRootOnParentRoot = true;
+				}
+			}
+		}
+		*/
+		/*
+		var storageObjName = objRefRootOnParent? '__load_parent_objRef_props__':
+			objRefRootOnParentRoot? '__load_parentRoot_objRef_props__':
+			objRefRootOnOwner? '__load_owner_objRef_props__':
+			null; // default can not load
+		*/
+		var storageObjName = '__load_objRef_props__';
+		return {
+			'objRefRoot': objRefRoot,
+			'rootObj': rootObj,
+			'storageObjName': storageObjName
+		};
+	},
 
 	/** @private */
-	loaded: function(/*$super*/)
+	loaded: function(rootObj)
 	{
-		this.tryApplySuper('loaded')  /* $super() */;
+		this.tryApplySuper('loaded', [rootObj]);
 		this.notifyParentLoaded();
+	},
+	/** @private */
+	allLoaded: function(rootObj)
+	{
+		this.tryApplySuper('allLoaded', [rootObj]);
+		// handle prop ref values
+		this._handleObjRefProps(rootObj, this.__load_objRef_props__);
 	},
 
 	/** @private */
@@ -2962,6 +3227,22 @@ Kekule.ChemObject = Class.create(ObjectEx,
 				result = p.getParentList() || [];
 			}
 			result.unshift(p);
+		}
+		return result;
+	},
+	/**
+	 * Returns the root object of parent list.
+	 * @returns {Kekule.ChemObject}
+	 */
+	getParentRoot: function()
+	{
+		var result = this.getParent();
+		if (result)
+		{
+			if (result.getParentRoot)
+			{
+				result = result.getParentRoot() || result;
+			}
 		}
 		return result;
 	},
@@ -3753,13 +4034,21 @@ Kekule.ChemObject = Class.create(ObjectEx,
 			if (this.getSizeOfMode)
 			{
 				var size = this.getSizeOfMode(coordMode, allowCoordBorrow) || {};
+				var anchorPosition = this.getObjAnchorPosition(coordMode);
+				if (anchorPosition === Kekule.ObjAnchorPosition.CENTER)
+				{
+					var halfSize = Kekule.CoordUtils.divide(size, 2);
+					if (coordMode !== Kekule.CoordMode.COORD3D)
+						halfSize.y = -halfSize.y;
+					coord1 = Kekule.CoordUtils.substract(coord1, halfSize);
+				}
 				if (coordMode === Kekule.CoordMode.COORD3D)
-					var coord2 = Kekule.CoordUtils.add(coord1, this.getSizeOfMode(coordMode, allowCoordBorrow) || {});
+					coord2 = Kekule.CoordUtils.add(coord1, this.getSizeOfMode(coordMode, allowCoordBorrow) || {});
 				else // 2D
 				{
 					coord2 = {
-						x: coord1.x + size.x,
-						y: coord1.y - size.y
+						x: (coord1.x || 0) + (size.x || 0),
+						y: (coord1.y || 0) - (size.y || 0)
 					};
 				}
 			}
@@ -3794,7 +4083,7 @@ Kekule.ChemObject = Class.create(ObjectEx,
 	 *   For example, you can use {'method': {@link Kekule.ComparisonMethod.CHEM_STRUCTURE}} to indicating that only the chem structure
 	 *   data should be compared. <br />
 	 *   You can also use {'properties': ['propName1', 'propName2']} to manually assign properties that
-	 *   need to be compared. <br />
+	 *   need to be compared, or use {'ignoredProperties: ['propName1]} to bypass some properties in comparison. <br />
 	 *   Custom comparison method can also be appointed as {'customMethod': myComparisonFunc}, then the
 	 *   comparison will be actually called as myComparisonFunc(thisObj, targetObj, options).
 	 * @returns {Int} Returns 0 when two objects are equivalent,
@@ -3865,7 +4154,7 @@ Kekule.ChemObject = Class.create(ObjectEx,
 							var v2 = targetObj.getPropValue(propName);
 							//console.log('compare extra', this.getClassName(), propName, v1, v2);
 							result = this.doCompareOnValue(v1, v2, options);
-							if (!result)
+							if (result !== 0)
 								break;
 						}
 					}
@@ -3891,22 +4180,45 @@ Kekule.ChemObject = Class.create(ObjectEx,
 		else
 		{
 			// first extract all properties that should be compared
+			/*
 			propNames = this.doGetComparisonPropNames(options);
 			if (!propNames)  // returns null, need to compare all public and published properties
 			{
 				propNames = this.doGetDefaultComparisonPropNames();
 			}
+			*/
+			propNames = this.getComparisonPropNames(options);
 		}
+		var ignoredPropNames = options && options.ignoredProperties;
 		// then compare each property values
 		var result = 0;
 		for (var i = 0, l = propNames.length; i < l; ++i)
 		{
+			var propName = propNames[i];
+			if (ignoredPropNames && ignoredPropNames.indexOf(propName) >= 0)
+				continue;
 			result = this.doCompareProperty(targetObj, propNames[i], options);
 			if (result !== 0)
 				return result;
 		}
 		// all properties returns 0 (equal), returns 0
 		return 0;
+	},
+	/**
+	 * Returns the essential property names that should be handled during object comparison.
+	 * Descendants may override this method.
+	 * @param {Hash} options
+	 * @returns {Array} Returns property names.
+	 * @private
+	 */
+	getComparisonPropNames: function(options)
+	{
+		var propNames = this.doGetComparisonPropNames(options);
+		if (!propNames)  // returns null, need to compare all public and published properties
+		{
+			propNames = this.doGetDefaultComparisonPropNames();
+		}
+		return propNames;
 	},
 	/**
 	 * Returns all essential property names that should be handled during object comparison.
@@ -4003,6 +4315,141 @@ Kekule.ChemObject = Class.create(ObjectEx,
 });
 
 /**
+ * Enum of variable dependency.
+ * @enum
+ */
+Kekule.VarDependency = {
+	INDEPENDENT: 0,
+	DEPENDENT: 1
+}
+
+/**
+ * Class to define a chemical variable with name and unit.
+ * @class
+ * @augments ObjectEx
+ * @param {Hash} params A hash to set the initial property values.
+ *
+ * @property {String} name Name of variable.
+ * @property {String} symbol Symbol of variable.
+ * @property {String} unit Units of variable.
+ * @property {Variant} displayLabel Display text of variable, can be string or rich text object.
+ * @property {String} description Description of variable.
+ * @property {Int} dependency Value from {@link Kekule.VarDependency}.
+ * @property {Hash} info Additional information about variable.
+ */
+Kekule.VarDefinition = Class.create(ObjectEx,
+/** @lends Kekule.VarDefinition# */
+{
+	/** @private */
+	CLASS_NAME: 'Kekule.VarDefinition',
+	/** @private */
+	initialize: function(params)
+	{
+		this.tryApplySuper('initialize');
+		this.beginUpdate();
+		try
+		{
+			if (params)
+				this.setPropValues(params);
+			if (Kekule.ObjUtils.isUnset(this.getDependency()))
+				this.setDependency(Kekule.VarDependency.INDEPENDENT);
+		}
+		finally
+		{
+			this.endUpdate();
+		}
+	},
+	initProperties: function()
+	{
+		this.defineProp('name', {'dataType': DataType.STRING});
+		this.defineProp('symbol', {'dataType': DataType.STRING});
+		this.defineProp('unit', {'dataType': DataType.STRING});
+		this.defineProp('units', {'dataType': DataType.STRING, 'serializable': false, 'scope': Class.PropertyScope.PUBLIC,
+			'getter': function() { return this.getUnit(); },
+			'setter': function(value) { this.setUnit(value); }
+		});
+		this.defineProp('dependency', {'dataType': DataType.INT, 'enumSource': Kekule.VarDependency});
+		this.defineProp('displayLabel', {'dataType': DataType.VARIANT});
+		this.defineProp('description', {'dataType': DataType.STRING});
+		//this.defineProp('minValue', {'dataType': DataType.PRIMARY});
+		//this.defineProp('maxValue', {'dataType': DataType.PRIMARY});
+		this.defineProp('info',
+			{
+				'dataType': DataType.HASH,
+				'getter': function(canCreate)
+				{
+					var r = this.getPropStoreFieldValue('info');
+					if ((!r) && canCreate)
+					{
+						r = {};
+						this.setPropStoreFieldValue('info', r);
+					}
+					return r;
+				}
+			});
+	},
+	/**
+	 * Returns whether the var is a independent one
+	 */
+	isIndependent: function()
+	{
+		return this.getDependency() !== Kekule.VarDependency.DEPENDENT;
+	},
+	/**
+	 * Returns all keys in {@link Kekule.ChemObject#info} property.
+	 * @returns {Array}
+	 */
+	getInfoKeys: function()
+	{
+		return this.getInfo()? Kekule.ObjUtils.getOwnedFieldNames(this.getInfo()): [];
+	},
+	/**
+	 * Get item value from info hash.
+	 * @param key Key of information item.
+	 */
+	getInfoValue: function(key)
+	{
+		return this.getInfo()? this.getInfo()[key]: null;
+	},
+	/**
+	 * Set an item value in info hash. If key already exists, its value will be overwritten.
+	 * @param key Key of information item.
+	 * @param value Value of information item.
+	 */
+	setInfoValue: function(key, value)
+	{
+		this.doGetInfo(true)[key] = value;
+		this.notifyInfoChange();
+	},
+	/** @private */
+	notifyInfoChange: function()
+	{
+		this.notifyPropSet('info', this.getPropStoreFieldValue('info'));
+	},
+	// methods for comparison
+	/** @private */
+	doCompare: function(targetObj, options)
+	{
+		var result = 0;
+		var compProps;
+		if (options.method === Kekule.ComparisonMethod.CHEM_STRUCTURE)
+			compProps = ['unit', 'dependency', 'info'];
+		else
+			compProps = ['name', 'symbol', 'unit', 'dependency', 'info', 'displayLabel', 'description'];
+		for (var i = 0, l = compProps.length; i < l; ++i)
+		{
+			var name = compProps[i];
+			var v1 = this.getPropValue(name);
+			var v2 = targetObj.getPropValue(name);
+			result = Kekule.ObjComparer._compareValue(v1, v2, options);
+			if (!result)
+				break;
+		}
+		return result;
+	}
+});
+
+/**
  * Class to hold a general data with unit in chemistry, such as temperature, weight, pressure and so on.
  * @class
  * @augments Kekule.ChemObject
@@ -4040,8 +4487,32 @@ Kekule.Scalar = Class.create(Kekule.ChemObject,
 		this.defineProp('errorValue', {'dataType': DataType.PRIMARY});
 		this.defineProp('unit', {'dataType': DataType.STRING});
 		this.defineProp('title', {'dataType': DataType.STRING});
-	}
+	},
+	/** @ignore */
+	doGetComparisonPropNames: function(options)
+	{
+		var result = this.tryApplySuper('doGetComparisonPropNames', [options]);
+		if (options.method === Kekule.ComparisonMethod.CHEM_STRUCTURE)
+		{
+			return (result || []).concat(['name', 'value', 'errorValue', 'unit', 'title']);
+		}
+		return result;
+	},
 });
+
+/**
+ * A quick function to create a new scalar value.
+ * @param {Variant} value
+ * @param {String} unit
+ * @param {Variant} errorValue
+ */
+Kekule.Scalar.create = function(value, unit, errorValue)
+{
+	var result = new Kekule.Scalar(null, null, value, unit);
+	if (errorValue !== undefined)
+		result.setErrorValue(errorValue);
+	return result;
+}
 
 /**
  * A list to hold a set of other {@link Kekule.ChemObject}.
@@ -4092,12 +4563,12 @@ Kekule.ChemObjList = Class.create(Kekule.ChemObject,
 	},
 
 	/** @private */
-	loaded: function(/*$super*/)
+	loaded: function(rootObj)
 	{
 		// update parent and owner of children
 		this.ownerChanged(this.getOwner());
 		this.parentChanged(this.getParent());
-		this.tryApplySuper('loaded')  /* $super() */;
+		this.tryApplySuper('loaded', [rootObj]);
 	},
 
 	/* @private */
@@ -4485,6 +4956,17 @@ Kekule.ChemObjList = Class.create(Kekule.ChemObject,
 			}
 		}
 		return result;
+	},
+
+	/** @ignore */
+	getComparisonPropNames: function(options)
+	{
+		var result = this.tryApplySuper('getComparisonPropNames', [options]);
+		if (result && this._transparent)
+		{
+			result = Kekule.ArrayUtils.exclude(result, ['parent', 'owner']);
+		}
+		return result;
 	}
 });
 
@@ -4536,7 +5018,7 @@ Kekule.ChemSpaceElement = Class.create(Kekule.ChemObject,
 		});
 	},
 	/** @private */
-	loaded: function(/*$super*/)
+	loaded: function(rootObj)
 	{
 		var objList = this.getChildren();
 		if (objList)
@@ -4544,7 +5026,7 @@ Kekule.ChemSpaceElement = Class.create(Kekule.ChemObject,
 			objList.parentChanged(this);
 			objList.ownerChanged(this.getOwner());
 		}
-		this.tryApplySuper('loaded')  /* $super() */;
+		this.tryApplySuper('loaded', [rootObj]);
 	},
 
 	/** @ignore */
@@ -4748,7 +5230,7 @@ Kekule.ChemSpace = Class.create(Kekule.ChemObject,
 		});
 	},
 	/** @private */
-	loaded: function(/*$super*/)
+	loaded: function(rootObj)
 	{
 		var root = this.getRoot();
 		if (root)
@@ -4756,7 +5238,7 @@ Kekule.ChemSpace = Class.create(Kekule.ChemObject,
 			root.setParent(this);
 			root.setOwner(this);
 		}
-		this.tryApplySuper('loaded')  /* $super() */;
+		this.tryApplySuper('loaded', [rootObj]);
 		this.notifyOwnerLoaded();
 	},
 

@@ -224,11 +224,11 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 
 	/** private */
 	_FONT_OPTION_FIELDS: ['fontSize', 'fontFamily', 'fontWeight', 'fontStyle',
-		'color', 'overhang', 'oversink', 'opacity', 'zoom'],
+		'color', 'overhang', 'oversink', 'opacity', 'zoom', 'transforms'],
 	/** @private */
 	_DRAW_OPTIONS_FIELDS: ['textType', 'charDirection', 'defaultCharDirection',
 		'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'color',
-		'horizontalAlign', 'verticalAlign', 'zoom'],
+		'horizontalAlign', 'verticalAlign', 'zoom', 'transforms'],
 	/**
 	 * Get local draw options of a item.
 	 * @param {Object} richTextItem
@@ -344,7 +344,7 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 	{
 		var result = Kekule.ObjUtils.notUnset(richTextItem._noAlignRect)?
 			(!!richTextItem._noAlignRect):
-			(RTU.isSubscript(richTextItem) || RTU.isSuperscript(richTextItem));
+			(RTU.isSubscript(richTextItem) || RTU.isSuperscript(richTextItem));  // TODO: is this suitable? alignRect of sub/sup not take into consideration
 		return result;
 	},
 
@@ -375,20 +375,7 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 		 */
 	drawEx: function(context, coord, richText, options, drawConfigs)
 	{
-		//this.fillOptions(drawConfigs || this.getDrawConfigs() || Kekule.Render.getRender2DConfigs());
-		var ops;
-		if (!options)
-			ops = this.options;
-		else
-		{
-			ops = Object.create(this.options || {});
-			ops = Object.extend(ops, options);
-		}
-
-		if (!ops.defaultCharDirection)
-			ops.defaultCharDirection = ops.charDirection;
-
-		//console.log('draw rich text ex', richText, ops);
+		var ops = this.doPrepareDrawOptions(context, richText, options);
 
 		//this.doPrepare(richText);
 		// clone richtext to modify the object freely
@@ -401,13 +388,16 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 			adjustDrawing: bridge.canModifyText() // draw first and then adjust position
 		};
 
-		this.doPrepare(context, coord, destRichText, ops, drawMode);
+		var preDrawnElem = [];
+		this.doPrepare(context, coord, destRichText, ops, drawMode, preDrawnElem);
+		//console.log('predraw', preDrawnElem);
 
 		var drawnObj = this.doRenderRichText(context, destRichText, ops, drawMode);
-		var rect = this._getItemRectInfo(destRichText).boundRect;
+		var rectInfo = this._getItemRectInfo(destRichText);
 		var result = {
 			'drawnObj': drawnObj,
-			'boundRect': rect
+			'boundRect': rectInfo.boundRect,
+			'alignRect': rectInfo.alignRect
 		};
 		return result;
 	},
@@ -434,11 +424,79 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 	{
 		return this.drawEx(context, coord, richText, options, drawConfigs).drawnObj;
 	},
+	/**
+	 * Measure the bound rect of rich text on coordinate.
+	 * @param {Object} context Context (canvas, SVG, VML, WebGL...) to draw.
+	 * @param {Hash} coord
+	 * @param {Object} richText Rich text object to draw.
+	 * @param {Object} options Options to draw text.
+	 *   Can have the following fields:
+	 *   {
+	 *     fontSize, fontFamily, charDirection,
+	 *     horizontalAlign, verticalAlign,
+	 *     textBoxXAlignment, textBoxYAlignment,
+	 *     textBoxAlignmentMode
+	 *   }
+	 *   Note here textBoxAlignmentMode decide the alignment style,
+	 *   BOX means alignment based on the whole box,
+	 *   ANCHOR means textBoxXAlignment and textBoxYAlignment affect on the childmost anchor item of richtext.
+	 * @param {Object} drawConfigs instance of {@link Kekule.Render.Render2DConfigs}. This param will override drawer's drawConfigs property.
+	 * @returns {Object} Bound rect calculated {left, top, width, height}.
+	 */
+	measure: function(context, coord, richText, options, drawConfigs)
+	{
+		var ops = this.doPrepareDrawOptions(context, richText, options);
+		if (!coord)
+			coord = {'x': 0, 'y': 0};
+
+		// clone richtext to modify the object freely
+		var destRichText = this.cloneRichText(richText);
+
+		var bridge = this.getDrawBridge();
+		var drawMode = {
+			delayDrawing: bridge.canMeasureText(), // calculate out all sub item's coord, then draw
+			adjustDrawing: bridge.canModifyText() // draw first and then adjust position
+		};
+
+		var preDrawnElem = [];
+		this.doPrepare(context, coord, destRichText, ops, drawMode, preDrawnElem);
+		var rectInfo = this._getItemRectInfo(destRichText);
+
+		if (preDrawnElem.length && bridge.removeDrawnElem)  // free this elements after measurement
+		{
+			for (var i = 0, l = preDrawnElem.length; i < l; ++i)
+			{
+				var elem = preDrawnElem[i];
+				bridge.removeDrawnElem(context, elem);
+			}
+		}
+
+		return rectInfo.boundRect;
+	},
 
 	/** @private */
-	doPrepare: function(context, coord, richText, options, drawMode)
+	doPrepareDrawOptions: function(context, richText, options)
 	{
-		var result = this.doPrepareItem(context, richText, options, drawMode);
+		//this.fillOptions(drawConfigs || this.getDrawConfigs() || Kekule.Render.getRender2DConfigs());
+		var ops;
+		if (!options)
+			ops = this.options;
+		else
+		{
+			ops = Object.create(this.options || {});
+			ops = Object.extend(ops, options);
+		}
+
+		if (!ops.defaultCharDirection)
+			ops.defaultCharDirection = ops.charDirection;
+
+		//console.log('draw rich text ex', richText, ops);
+		return ops;
+	},
+	/** @private */
+	doPrepare: function(context, coord, richText, options, drawMode, preDrawnElems)
+	{
+		var result = this.doPrepareItem(context, richText, options, drawMode, preDrawnElems);
 
 		// adjust prepared rects to coord
 		var anchorAlignRect = null;
@@ -462,7 +520,10 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 		var alignRect = Kekule.RectUtils.shiftRect(rectInfo.alignRect, delta.x, delta.y);
 		var boundRect = Kekule.RectUtils.shiftRect(rectInfo.boundRect, delta.x, delta.y);
 
+		//console.log('draw text', anchorAlignRect, alignRect, boundRect, rectInfo);
+
 		this._setItemRectInfo(richText, boundRect, alignRect);
+		//console.log('bound', boundRect);
 
 		return result;
 	},
@@ -567,7 +628,7 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 	},
 
 	/** @private */
-	doPrepareItem: function(context, item, options, drawMode)
+	doPrepareItem: function(context, item, options, drawMode, preDrawnElems)
 	{
 		var itemType = RTU.getItemType(item);
 
@@ -582,9 +643,9 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 		var result;
 		switch (itemType)
 		{
-			case RT.SECTION: result = this.doPrepareSection(context, item, ops, drawMode); break;
-			case RT.LINES: result = this.doPrepareLines(context, item, ops, drawMode); break;
-			default: result = this.doPrepareGroup(context, item, ops, drawMode); break; // group or seq
+			case RT.SECTION: result = this.doPrepareSection(context, item, ops, drawMode, preDrawnElems); break;
+			case RT.LINES: result = this.doPrepareLines(context, item, ops, drawMode, preDrawnElems); break;
+			default: result = this.doPrepareGroup(context, item, ops, drawMode, preDrawnElems); break; // group or seq
 		}
 		return result;
 	},
@@ -593,7 +654,7 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 	 * Get section information for drawing and store it in section object.
 	 * @private
 	 */
-	doPrepareSection: function(context, section, drawOptions, drawMode)
+	doPrepareSection: function(context, section, drawOptions, drawMode, preDrawnElems)
 	{
 		var bridge = this.getDrawBridge();
 
@@ -624,7 +685,7 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 				RTU.appendText(group, text.charAt(i));
 			}
 			// force to prepare this group again
-			return this.doPrepareItem(context, group, newDrawOptions, drawMode);
+			return this.doPrepareItem(context, group, newDrawOptions, drawMode, preDrawnElems);
 		}
 
 		//if ((drawOptions.charDirection == TD.RTL) || (drawOptions.charDirection == TD.BTT)) // reversed direction, reverse text first and turn it into normal direction
@@ -647,6 +708,7 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 			var drawElem = this.getDrawBridge().drawText(context, offScreenCoord, text, actualFontInfo);
 			this._setRenderElem(section, drawElem);
 			textDimension = bridge.measureDrawnText(context, drawElem, actualFontInfo);
+			preDrawnElems.push(drawElem);
 		}
 
 		var sectionRect = {'left': 0, 'top': 0, 'width': textDimension.width || 0, 'height': textDimension.height || 0};
@@ -654,7 +716,7 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 	},
 
 	/** @private */
-	doPrepareLines: function(context, group, drawOptions, drawMode)
+	doPrepareLines: function(context, group, drawOptions, drawMode, preDrawnElems)
 	{
 		//console.log('prepare lines');
 		var charDirection = drawOptions.charDirection || TD.DEFAULT; // explicitly set to default
@@ -674,11 +736,11 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 		drawOptions.charDirection = lineDirection;
 		drawOptions._originCharDirection = charDirection;  // save the old direction for group prepare
 
-		return this.doPrepareGroup(context, group, drawOptions, drawMode);
+		return this.doPrepareGroup(context, group, drawOptions, drawMode, preDrawnElems);
 	},
 
 	/** @private */
-	doPrepareGroup: function(context, group, drawOptions, drawMode)
+	doPrepareGroup: function(context, group, drawOptions, drawMode, preDrawnElems)
 	{
 		// prepare each items first to get basic dimension information
 		var items = group.items;
@@ -690,7 +752,7 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 		for (var i = 0, l = items.length; i < l; ++i)
 		{
 			var item = items[i];
-			this.doPrepareItem(context, item, drawOptions, drawMode);
+			this.doPrepareItem(context, item, drawOptions, drawMode, preDrawnElems);
 		}
 
 		// then adjust each item's position
@@ -850,6 +912,9 @@ Kekule.Render.BaseRichTextDrawer = Class.create(ObjectEx,
 				else
 					gAlignRect = Kekule.RectUtils.getContainerRect(gAlignRect, rectInfo.alignRect);
 			}
+
+			//console.log('item align rect info!!!!!', this._itemHasNoAlignRect(item), this._getActualFontInfo(item) && this._getActualFontInfo(item).isSup, rectInfo.alignRect, gAlignRect);
+
 			//else
 			//	console.log('noAlign');
 			if (!gBoundRect)

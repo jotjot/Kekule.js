@@ -369,7 +369,7 @@ Kekule.Editor.StructureConfigs = Class.create(Kekule.AbstractConfigs,
 		 */
 		this.addStrConfigProp('defBondType', Kekule.BondType.DEFAULT, {'enumSource': Kekule.BondType});
 		this.addIntConfigProp('defBondOrder', Kekule.BondOrder.SINGLE, {'enumSource': Kekule.BondOrder});
-		this.addFloatConfigProp('defBondLength', 0.8);
+		this.addFloatConfigProp('defBondLength', Kekule.globalOptions.structure.defaultBondLength2D || 0.8);
 		this.addConfigProp('defBondAngles', DataType.ARRAY, undefined, {'scope': PS.PUBLIC});
 		this.addFloatConfigProp('bondConstrainedDirectionDelta', undefined, {'scope': PS.PUBLIC});
 		this.addConfigProp('bondConstrainedDirectionAngles', DataType.ARRAY, undefined, {'scope': PS.PUBLIC});
@@ -411,7 +411,8 @@ Kekule.Editor.StructureConfigs = Class.create(Kekule.AbstractConfigs,
 			'ionic': false,
 			'coordinate': false,
 			'metallic': false,
-			'hydrogen': true
+			'hydrogen': true,
+			'transition': true
 		});
 	},
 	/** @private */

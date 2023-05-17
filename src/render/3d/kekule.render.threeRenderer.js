@@ -762,9 +762,19 @@ Kekule.Render.ThreeRendererBridge = Class.create(Kekule.Render.Abstract3DDrawBri
 	getCameraProps: function(context)
 	{
 		var c = context.getCamera();
+		// the fov of Three is based on height (vertical), so we need to calc and report fov of other directions
+		var fovVertical = c.fov * Math.PI / 180;
+		var fovHorizontal = fovVertical * (c.aspect || 1);
+		var fovMin = Math.min(fovVertical, fovHorizontal);
+		return {'position': c.position,	'fov': fovVertical,	'aspect': c.aspect,
+			'fovVertical': fovVertical, 'fovHorizontal': fovHorizontal, 'fovMin': fovMin,
+			'left': c.left, 'right': c.right, 'top': c.top, 'bottom': c.bottom,
+			'lookAtVector': c.lookAtVector, 'upVector': c.up};
+		/*
 		return {'position': c.position,	'fov': c.fov * Math.PI / 180,	'aspect': c.aspect,
 			'left': c.left, 'right': c.right, 'top': c.top, 'bottom': c.bottom,
 			'lookAtVector': c.lookAtVector, 'upVector': c.up};
+		*/
 	},
 	/**
 	 * Set properties of current camera, including position(coord), fov, aspect, lookAtVector and so on.
@@ -789,7 +799,7 @@ Kekule.Render.ThreeRendererBridge = Class.create(Kekule.Render.Abstract3DDrawBri
 		if (notUnset(props.near))
 			c.near = props.near;
 		if (notUnset(props.far))
-			c.near = props.far;
+			c.far = props.far;
 
 		// for perspective projection
 		if (props.fov)
@@ -839,6 +849,7 @@ Kekule.Render.ThreeRendererBridge = Class.create(Kekule.Render.Abstract3DDrawBri
 /**
  * Check if current environment supports Three.js drawing.
  * @returns {Bool}
+ * @deprecated
  */
 Kekule.Render.ThreeRendererBridge.isSupported = function()
 {
@@ -852,6 +863,37 @@ Kekule.Render.ThreeRendererBridge.isSupported = function()
 	return !!result;
 	//return Kekule.Render.ThreeRendererBridge.CheckSupporting().isSupported;
 };
+/**
+ * Returns the availability information of Three.js renderer.
+ * @returns {Hash}
+ */
+Kekule.Render.ThreeRendererBridge.getAvailabilityInformation = function()
+{
+	var available = false;
+	var threeLoaded = (typeof(Kekule.Render.getExternalModule(THREE_MODULE_NAME)) !== 'undefined');
+	var F = Kekule.BrowserFeature;
+	var webglAvailable = F.webgl;
+	var fallbackAvailable = (F.canvas || F.svg);
+	var msg = null;
+	if (!threeLoaded)
+	{
+		msg = Kekule.$L('ErrorMsg.THREEJS_LIB_NOT_UNAVAILABLE');
+	}
+	else if (!webglAvailable && !fallbackAvailable)
+	{
+		msg = Kekule.$L('ErrorMsg.THREEJS_DRAWING_NOT_UNAVAILABLE');
+	}
+	else
+		available = true;
+
+	return {
+		'available': available,
+		'message': msg
+	}
+};
+
+Kekule.Render.DrawBridge3DMananger.register(Kekule.Render.ThreeRendererBridge, 20);
+
 /*
  * Check if current environment supports Three.js drawing.
  * This function will returns more detailed information than {@link Kekule.Render.ThreeRendererBridge.isSupported}.
@@ -922,7 +964,7 @@ var _threeRegistered = function(){
 };
 var _threeUnregistered = function()
 {
-	Kekule.Render.DrawBridge3DMananger.unregister(Kekule.Render.ThreeRendererBridge);
+	//Kekule.Render.DrawBridge3DMananger.unregister(Kekule.Render.ThreeRendererBridge);
 };
 
 var _registerThree = function(threeRoot)

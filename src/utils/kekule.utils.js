@@ -86,6 +86,15 @@ Kekule.ClassUtils = {
  */
 Kekule.NumUtils = {
 	/**
+	 * Check if a value is a normal number (not NaN).
+	 * @param {Variant} value
+	 * @returns {Bool}
+	 */
+	isNormalNumber: function(value)
+	{
+		return (typeof(value) === 'number') && !isNaN(value);
+	},
+	/**
 	 * Check if a number is integer.
 	 * @param {Number} num
 	 * @returns {Bool}
@@ -121,6 +130,93 @@ Kekule.NumUtils = {
 		else
 			return n.toString();
 	},
+	/**
+	 * Output a string with precision length.
+	 * Not the same to Number.toPrecision, this method will not pad with zero to the right.
+	 * For example, call toPrecision(5.3456, 2) will return '5.35',
+	 * but call toPrecision(5.1, 2) will simply return '5.1'.
+	 * @param {Number} num
+	 * @param {Int} precision
+	 * @param {Bool} doNotPadZeroOnRight
+	 * @param {Bool} preserveIntPart If true, when the digits of number int part larger than precision length, all of them will be preserved.
+	 * @returns {String}
+	 */
+	toPrecision: function(num, precision, doNotPadZeroOnRight, preserveIntPart)
+	{
+		var sign = Math.sign(num);
+		var n = Math.abs(num);
+		var decimalPointPos = Kekule.NumUtils.getDecimalPointPos(n);
+		var precisionPos = decimalPointPos + 1 - precision;
+		var result;
+		if (precisionPos >= 0)
+			result = preserveIntPart? Math.round(n): n.toPrecision(precision);
+		else
+		{
+			var v = Math.round(n * Math.pow(10, -precisionPos));
+			var s = v.toString();
+			var strLength = s.length;
+			var dpos = Math.abs(precisionPos);
+			if (strLength === dpos)
+				result = '0.' + s;
+			else if (strLength > dpos)
+				result = s.substr(0, strLength - dpos) + '.' + s.substr(strLength - dpos);
+			else
+				result = 0.0.toFixed(dpos - strLength) + s;
+			if (doNotPadZeroOnRight)
+			{
+				var removeCount = 0;
+				var c = result.charAt(result.length - 1 - removeCount);
+				while (c === '0' || c === '.')
+				{
+					++removeCount;
+					if (c === '.')
+						break;
+					else
+						c = result.charAt(result.length - 1 - removeCount);
+				}
+				result = result.substr(0, result.length - removeCount);
+			}
+		}
+		if (sign < 0)
+			result = '-' + result;
+		return result;
+	},
+	/**
+	 * Returns the position of decimal point to the first digit of number.
+	 * E,g. getDecimalPointPos(224.22) === 2, getDecimalPointPos(0.0022422) = -3, getDecimalPointPos(0) = 0,
+	 * @param {Number} num
+	 * @returns {Int}
+	 */
+	getDecimalPointPos: function(num)
+	{
+		if (Kekule.NumUtils.isFloatEqual(num, 0))
+			return 0;
+		var n = Math.abs(num);
+		var ratio = (n > 1)? 10: 0.1;
+		var delta = (n > 1)? 1: -1;
+		var compValue = 1;
+		var result = 0;
+		while ((n > 1 && compValue <= n) || (n < 1 && compValue > n))
+		{
+			compValue *= ratio;
+			result += delta;
+		}
+		return (n > 1)? (result - 1): result;
+	},
+	/**
+	 * Returns the heading digit of a number.
+	 * For example, it returns 3 for number 35.12, returns 1 for number 0.123.
+	 * @param {String} num
+	 */
+	getHeadingDigit: function(num)
+	{
+		if (Kekule.NumUtils.isFloatEqual(num, 0))
+			return 0;
+		var n = Math.abs(num);
+		var decimalPointPos = Kekule.NumUtils.getDecimalPointPos(n);
+		var c = Math.pow(10, decimalPointPos);
+		return Math.floor(n / c);
+	},
 
 	/**
 	 * Check if f1 and f2 are equal.
@@ -133,9 +229,23 @@ Kekule.NumUtils = {
 	 */
 	isFloatEqual: function(f1, f2, threshold)
 	{
-		if (Kekule.ObjUtils.isUnset(threshold))
-			threshold = 1e-100;
+		if (Kekule.ObjUtils.isUnset(threshold))  // auto threshold
+			threshold = Math.min(Math.abs(f1), Math.abs(f2)) * 1e-15; //threshold = 1e-100;
 		return Math.abs(f1 - f2) <= threshold;
+	},
+	/**
+	 * Check if f1 is equal, less or greater to f2.
+	 * Since float can not be stored exactly in computer, when abs(f1-f2) <= threshold,
+	 * this function will returns 0.
+	 * @param {Float} f1
+	 * @param {Float} f2
+	 * @param {Float} threshold If not set, a default value will be used.
+	 * @returns {Int}
+	 */
+	compareFloat: function(f1, f2, threshold)
+	{
+		return Kekule.NumUtils.isFloatEqual(f1, f2, threshold)? 0:
+			(f1 < f2)? -1: 1;
 	},
 
 	/**
@@ -439,11 +549,12 @@ Kekule.ArrayUtils = {
 	 * If obj already inside array, also returns index of obj in array.
 	 * @param {Array} targetArray Target array.
 	 * @param {Variant} obj Must not be null.
+	 * @param {Bool} reserveNestedArray
 	 * @return {Int} Index of obj in array.
 	 */
-	pushUnique: function(targetArray, obj)
+	pushUnique: function(targetArray, obj, reserveNestedArray)
 	{
-		var r = Kekule.ArrayUtils.pushUniqueEx(targetArray, obj);
+		var r = Kekule.ArrayUtils.pushUniqueEx(targetArray, obj, reserveNestedArray);
 		return r? r.index: null;
 	},
 	/**
@@ -451,24 +562,28 @@ Kekule.ArrayUtils = {
 	 * If obj already inside array, returns index of obj and false.
 	 * @param {Array} targetArray Target array.
 	 * @param {Variant} obj Must not be null.
+	 * @param {Bool} reserveNestedArray
 	 * @return {Hash} {index, isPushed} hash. Index of obj in array.
 	 */
-	pushUniqueEx: function(targetArray, obj)
+	pushUniqueEx: function(targetArray, obj, reserveNestedArray)
 	{
 		if (DataType.isArrayValue(obj))
 		{
 			var r;
+			var pushFunc = (!reserveNestedArray)? Kekule.ArrayUtils.pushUniqueEx: Kekule.ArrayUtils._pushUniqueItemEx;
 			for (var i = 0, l = obj.length; i < l; ++i)
 			{
 				if (Kekule.ObjUtils.isUnset(r))
-					r = Kekule.ArrayUtils.pushUniqueEx(targetArray, obj[i]);
+					r = pushFunc(targetArray, obj[i], reserveNestedArray);
 				else
-					Kekule.ArrayUtils.pushUniqueEx(targetArray, obj[i]);
+					pushFunc(targetArray, obj[i], reserveNestedArray);
 			}
 			return r;
 		}
 		else
 		{
+			return Kekule.ArrayUtils._pushUniqueItemEx(targetArray, obj);
+			/*
 			if (!obj)
 				return {'index': -1, 'isPushed': false};
 			var index = targetArray.indexOf(obj);
@@ -478,7 +593,21 @@ Kekule.ArrayUtils = {
 			}
 			else // already inside, return -index of obj
 	 			return {'index': index, 'isPushed': false};
+			*/
 	 }
+	},
+	/** @private */
+	_pushUniqueItemEx: function(targetArray, item)
+	{
+		if (!item)
+			return {'index': -1, 'isPushed': false};
+		var index = targetArray.indexOf(item);
+		if (index < 0) // obj not in array, push
+		{
+			return {'index': targetArray.push(item), 'isPushed': true};
+		}
+		else // already inside, return -index of obj
+			return {'index': index, 'isPushed': false};
 	},
 	/**
 	 * Insert obj to index of array and returns the index of newly inserted obj.
@@ -1365,7 +1494,7 @@ Kekule.FactoryUtils = {
 					var r = result._items.get(key);
 					if (!r)
 					{
-						var parent = ClassEx.getSuperClass(key);
+						var parent = key && ClassEx.getSuperClass(key);
 						if (parent)
 							r = result.getClass(parent);
 					}
@@ -2151,6 +2280,7 @@ Kekule.CoordUtils = {
 	calcTransform2DMatrix: function(options, reverseOrder)
 	{
 		var M = Kekule.MatrixUtils;
+		var notUnset = Kekule.ObjUtils.notUnset;
 		var op = options || {};
 		var center = op.center;
 		if (center)  // center point set, need translate before rotate and scale
@@ -2182,12 +2312,12 @@ Kekule.CoordUtils = {
 		var scale = op.scale;
 		var scaleX = op.scaleX;
 		var scaleY = op.scaleY;
-		var defScale = scale || 1;
-		if (scale || scaleX || scaleY)
+		var defScale = Kekule.oneOf(scale, 1);
+		if (notUnset(scale) || notUnset(scaleX) || notUnset(scaleY))
 		{
 			var scaleMatrix = M.create(3, 3);
-			M.setValue(scaleMatrix, 1, 1, scaleX || defScale);
-			M.setValue(scaleMatrix, 2, 2, scaleY || defScale);
+			M.setValue(scaleMatrix, 1, 1, Kekule.oneOf(scaleX, defScale));
+			M.setValue(scaleMatrix, 2, 2, Kekule.oneOf(scaleY, defScale));
 			M.setValue(scaleMatrix, 3, 3, 1);
 		}
 		// translate matrix
@@ -2258,16 +2388,17 @@ Kekule.CoordUtils = {
 	 */
 	calcInverseTransform2DMatrix: function(options)
 	{
+		var notUnset = Kekule.ObjUtils.notUnset;
 		var op = Object.create(options);
 		if (options.center)
 		{
 			op.center = {x: options.center.x, y: options.center.y};
 		}
-		if (op.scale)
+		if (notUnset(op.scale))
 			op.scale = 1 / op.scale;
-		if (op.scaleX)
+		if (notUnset(op.scaleX))
 			op.scaleX = 1 / op.scaleX;
-		if (op.scaleY)
+		if (notUnset(op.scaleY))
 			op.scaleY = 1 / op.scaleY;
 		if (op.translateX)
 			op.translateX = -op.translateX;
@@ -2518,6 +2649,7 @@ Kekule.CoordUtils = {
 	 */
 	calcTransform3DMatrix: function(options)
 	{
+		var notUnset = Kekule.ObjUtils.notUnset;
 		var M = Kekule.MatrixUtils;
 		var op = options || {};
 		var center = op.center;
@@ -2606,13 +2738,13 @@ Kekule.CoordUtils = {
 		var scaleX = op.scaleX;
 		var scaleY = op.scaleY;
 		var scaleZ = op.scaleZ;
-		if (scale || scaleX || scaleY || scaleZ)
+		if (notUnset(scale) || notUnset(scaleX) || notUnset(scaleY) || notUnset(scaleZ))
 		{
-			var defScale = scale || 1;
+			var defScale = Kekule.oneOf(scale, 1);
 			var scaleMatrix = M.create(4, 4);
-			M.setValue(scaleMatrix, 1, 1, scaleX || defScale);
-			M.setValue(scaleMatrix, 2, 2, scaleY || defScale);
-			M.setValue(scaleMatrix, 3, 3, scaleZ || defScale);
+			M.setValue(scaleMatrix, 1, 1, Kekule.oneOf(scaleX, defScale));
+			M.setValue(scaleMatrix, 2, 2, Kekule.oneOf(scaleY, defScale));
+			M.setValue(scaleMatrix, 3, 3, Kekule.oneOf(scaleZ, defScale));
 			M.setValue(scaleMatrix, 4, 4, 1);
 		}
 		// translate matrix
@@ -2663,18 +2795,19 @@ Kekule.CoordUtils = {
 	 */
 	calcInverseTransform3DMatrix: function(options)
 	{
+		var notUnset = Kekule.ObjUtils.notUnset;
 		var op = Object.create(options);
 		if (options.center)
 		{
 			op.center = {x: options.center.x, y: options.center.y, z: options.center.z};
 		}
-		if (op.scale)
+		if (notUnset(op.scale))
 			op.scale = 1 / op.scale;
-		if (op.scaleX)
+		if (notUnset(op.scaleX))
 			op.scaleX = 1 / op.scaleX;
-		if (op.scaleY)
+		if (notUnset(op.scaleY))
 			op.scaleY = 1 / op.scaleY;
-		if (op.scaleZ)
+		if (notUnset(op.scaleZ))
 			op.scaleZ = 1 / op.scaleZ;
 		if (op.translateX)
 			op.translateX = -op.translateX;
@@ -2792,11 +2925,11 @@ Kekule.CoordUtils = {
 	},
 
 	/**
-	 * Returns a minial box that contains all coords.
-	 * @param {Array} coords Array of coords.
-	 * @returns {Hash}
+	 * Returns the min/max corner coords which can form a container box for all coords.
+	 * @param {Array} coords
+	 * @returns {Hash} A hash of {min, max}.
 	 */
-	getContainerBox: function(coords)
+	getContainerBoxCorners: function(coords)
 	{
 		var minCoord = {};
 		var maxCoord = {};
@@ -2821,7 +2954,18 @@ Kekule.CoordUtils = {
 				maxCoord.z = Math.max(maxCoord.z, coord.z);
 			}
 		}
-
+		return {'min': minCoord, 'max': maxCoord};
+	},
+	/**
+	 * Returns a minial box that contains all coords.
+	 * @param {Array} coords Array of coords.
+	 * @returns {Hash}
+	 */
+	getContainerBox: function(coords)
+	{
+		var corners = Kekule.CoordUtils.getContainerBoxCorners(coords);
+		var minCoord = corners.min;
+		var maxCoord = corners.max;
 		return Kekule.BoxUtils.createBox(minCoord, maxCoord);
 	}
 };
@@ -3286,6 +3430,111 @@ Kekule.GeometryUtils = {
 			}
 			return result;
 		}
+	},
+
+	/**
+	 * Clip a segment to a box, using the Cohen–Sutherland algorithm.
+	 * @param {Array} lineCoords Coords of two line segment ends.
+	 * @param {Array} boxCornerCoords Coords of two box corners.
+	 * @returns {Array} Coords of clipped line ends, or null if the line is out of box.
+	 */
+	clipLineSegmentByBox: function(lineCoords, boxCornerCoords)
+	{
+		// code is ported from https://www.jianshu.com/p/d512116bbbf3
+		var INSIDE = 0, LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;
+
+		var xmin = boxCornerCoords[0].x, ymin = boxCornerCoords[0].y;
+		var xmax = boxCornerCoords[1].x, ymax = boxCornerCoords[1].y;
+		var x0 = lineCoords[0].x, y0 = lineCoords[0].y;
+		var x1 = lineCoords[1].x, y1 = lineCoords[1].y;
+
+		var getRegionCode = function(coord)
+		{
+			var result = INSIDE;
+			if (coord.x < xmin)
+				result |= LEFT;
+			else if (coord.x > xmax)
+				result |= RIGHT;
+			if (coord.y < ymin)
+				result |= BOTTOM;
+			else if (coord.y > ymax)
+				result |= TOP;
+			return result;
+		}
+
+		var regionCode0 = getRegionCode(lineCoords[0]);
+		var regionCode1 = getRegionCode(lineCoords[1]);
+		var accept = false;
+
+		while (true)
+		{
+			if (!(regionCode0 | regionCode1))  // two ends inside box
+			{
+				accept = true;
+				break;
+			}
+			else if (regionCode0 & regionCode1)  // two ends outside one side of box, reject
+			{
+				accept = false;
+				break;
+			}
+			else
+			{
+				// failed both tests, so calculate the line segment to clip
+				// from an outside point to an intersection with clip edge
+				var x, y;
+
+				var outRegionCode = regionCode0? regionCode0: regionCode1;
+				// 找出和边界相交的点
+				// 使用点斜式 y = y0 + slope * (x - x0), x = x0 + (1 / slope) * (y - y0)
+				if (outRegionCode & TOP) // point is above the clip rectangle
+				{
+					x = x0 + (x1 - x0) * (ymax - y0) / (y1 - y0);
+					y = ymax;
+				}
+				else if (outRegionCode & BOTTOM)  // point is below the clip rectangle
+				{
+					x = x0 + (x1 - x0) * (ymin - y0) / (y1 - y0);
+					y = ymin;
+				}
+				else if (outRegionCode & RIGHT)   // point is to the right of clip rectangle
+				{
+					y = y0 + (y1 - y0) * (xmax - x0) / (x1 - x0);
+					x = xmax;
+				}
+				else if (outRegionCode & LEFT)    // point is to the left of clip rectangle
+				{
+					y = y0 + (y1 - y0) * (xmin - x0) / (x1 - x0);
+					x = xmin;
+				}
+
+				// Now we move outside point to intersection point to clip
+				// 为什么继续循环，两个端点都有可能在外面
+				if (outRegionCode === regionCode0)
+				{
+					x0 = x;
+					y0 = y;
+					regionCode0 = getRegionCode(x0, y0);
+				}
+				else
+				{
+					x1 = x;
+					y1 = y;
+					regionCode1 = getRegionCode(x1, y1);
+				}
+			}
+		}
+
+		// found the clipped segment, or the segment is totally out of box
+		if (accept)
+		{
+			var createCoord = Kekule.CoordUtils.create;
+			return [
+				createCoord(x0, y0), createCoord(x1, y1)
+			];
+		}
+		else
+			return null;
 	},
 
 	/**
@@ -3838,6 +4087,8 @@ Kekule.RectUtils = {
 Kekule.ZoomUtils = {
 	/** @private */
 	PREDEFINED_ZOOM_RATIOS: [0.1, 0.3, 0.5, 0.66, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5, 7, 10, 15, 20],
+	/** @private */
+	RATIO_INT_BASE: 100,
 	/**
 	 * Returns nearest zoom level to current ratio.
 	 * @param {Float} currRatio
@@ -3881,11 +4132,14 @@ Kekule.ZoomUtils = {
 			step = 1;
 		var rs = constraintZoomLevels || Kekule.ZoomUtils.PREDEFINED_ZOOM_RATIOS;
 		var len = rs.length;
-		if (currRatio < rs[len - 1])  // smaller than one of predefined ones
+		var currRatioInt = Math.round(currRatio * Kekule.ZoomUtils.RATIO_INT_BASE);
+		//if (currRatio < rs[len - 1])  // smaller than one of predefined ones
+		if (currRatioInt < Math.round(rs[len - 1] * Kekule.ZoomUtils.RATIO_INT_BASE))
 		{
 			for (var i = 0; i < len; ++i)
 			{
-				if (rs[i] > currRatio)
+				//if (rs[i] > currRatio)
+				if (Math.round(rs[i] * Kekule.ZoomUtils.RATIO_INT_BASE) > currRatioInt)
 				{
 					return rs[Math.min(i + step, len) - 1];
 				}
@@ -3907,11 +4161,14 @@ Kekule.ZoomUtils = {
 			step = 1;
 		var rs = constraintZoomLevels || Kekule.ZoomUtils.PREDEFINED_ZOOM_RATIOS;
 		var len = rs.length;
-		if (currRatio > rs[0])  // smaller than one of predefined ones
+		var currRatioInt = Math.round(currRatio * Kekule.ZoomUtils.RATIO_INT_BASE);
+		//if (currRatio > rs[0])  // smaller than one of predefined ones
+		if (currRatioInt > Math.round(rs[0] * Kekule.ZoomUtils.RATIO_INT_BASE))
 		{
 			for (var i = len - 1; i >= 0; --i)
 			{
-				if (rs[i] < currRatio)
+				//if (rs[i] < currRatio)
+				if (Math.round(rs[i] * Kekule.ZoomUtils.RATIO_INT_BASE) < currRatioInt)
 					return rs[Math.max(i - step + 1, 0)];
 			}
 		}

@@ -78,6 +78,7 @@
 .K-Chem-Periodic-Table-Head-Cell-Content
 {
     display: inline-block;
+    position: relative;
     padding: 0.3em 0.3em;
     font-weight: bold;
     font-size: 1.1em;
@@ -179,7 +180,8 @@
     width: 6em;
 }
 
-.K-Chem-Displayer-DrawContext-Parent
+.K-Chem-Displayer-DrawContext-Parent,
+.K-Chem-Viewer-UiContext-Parent
 {
     display: block;
     /*
@@ -265,6 +267,77 @@
     position: fixed !important;
     top: 0px !important;
     left: 0px !important;
+}
+
+.K-SpectrumInspector
+{
+    width: 60em;
+    height: 25em;
+    overflow: hidden;
+}
+.K-SpectrumInspector .K-SpectrumInspector-Client
+{
+    display: flex;
+    flex-direction: row-reverse;
+    height: 100%;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+}
+.K-SpectrumInspector.K-SpectrumInspector-AssocTailing .K-SpectrumInspector-Client
+{
+    flex-direction: row;
+}
+.K-SpectrumInspector.K-Layout-V .K-SpectrumInspector-Client
+{
+    flex-direction: column-reverse;
+}
+.K-SpectrumInspector.K-SpectrumInspector-AssocTailing.K-Layout-V .K-SpectrumInspector-Client
+{
+    flex-direction: column;
+}
+.K-SpectrumInspector .K-SpectrumInspector-Client .K-SpectrumInspector-ClientComponentHolder
+{
+    /*border: 1px solid red;*/
+    padding: 0;
+    margin: 0;
+}
+.K-SpectrumInspector .K-SpectrumInspector-Client .K-SpectrumInspector-ClientComponentHolder-AssocViewer
+{
+    flex: 0 0 25%;
+}
+.K-SpectrumInspector .K-SpectrumInspector-Client .K-SpectrumInspector-ClientComponentHolder-SpectrumViewer
+{
+    flex: 1 1 auto;
+}
+.K-SpectrumInspector .K-SpectrumInspector-Client .K-SpectrumInspector-ClientComponentHolder-ModifierPanel
+{
+    /*flex: 0 0 content;*/
+    display: none;
+    flex: 0 0 auto;
+}
+.K-SpectrumInspector .K-SpectrumInspector-Client .K-SpectrumInspector-ClientComponentHolder-HiddenCanvas
+{
+    flex: 0 0 0;
+    display: none;
+}
+.K-SpectrumInspector.K-SpectrumInspector-Editing .K-SpectrumInspector-Client .K-SpectrumInspector-ClientComponentHolder-ModifierPanel
+{
+    display: block;
+}
+
+.K-SpectrumInspector .K-SpectrumInspector-Client .K-Chem-Viewer
+{
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+
+
+.K-MenuItem.K-SpectrumInspector-MenuItem-SpectrumDataSection
+{
+    margin-left: 2em;
 }
 
 .K-Chem-StructureNodeSelectPanel, .K-Chem-StructureConnectorSelectPanel
@@ -644,6 +717,8 @@
     height: 100%;
 
     position: absolute;
+    left: 0;
+    top: 0;
     padding: 0;
     margin: 0;
 }
@@ -1063,7 +1138,7 @@
 
 .K-Chem-Obj-Setter
 {
-    width: 550px;
+    width: 600px;
     height: 450px;
 }
 .K-Chem-Obj-Setter .K-Chem-Obj-Setter-Client
@@ -1094,11 +1169,20 @@
     width: auto;
     height: auto;
 }
-.K-Chem-Obj-Setter .K-Chem-Obj-Setter-InfoLabel
+.K-Chem-Obj-Setter .K-Chem-Obj-Setter-InfoLabel,
+.K-Chem-Obj-Setter .K-Chem-Obj-Setter-StatusLabel
 {
     position: absolute;
+}
+.K-Chem-Obj-Setter .K-Chem-Obj-Setter-InfoLabel
+{
     top: 5px;
     left: 5px;
+}
+.K-Chem-Obj-Setter .K-Chem-Obj-Setter-StatusLabel
+{
+    right: 5px;
+    bottom: 5px;
 }
 .K-Chem-Obj-Setter .K-Chem-Obj-Setter-TabGroup
 {
@@ -1175,6 +1259,42 @@
 {
     margin-left: 1em;
     font-size: 90%;
+}
+
+.K-SpectrumObjInserter
+{
+    width: 80em;
+    height: 27em;
+}
+.K-SpectrumObjInserter .K-SpectrumObjInserter-Container
+{
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+.K-SpectrumObjInserter .K-SpectrumObjInserter-Container .K-SpectrumObjInserter-Toolbar-Area
+{
+    flex: 0 0 content;
+}
+.K-SpectrumObjInserter .K-SpectrumObjInserter-Container .K-SpectrumObjInserter-Client
+{
+    flex: 1 1 auto;
+    padding: 0;
+}
+.K-SpectrumObjInserter .K-SpectrumObjInserter-Container .K-SpectrumObjInserter-Client .K-SpectrumInspector
+{
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+
+.K-SpectrumObjInserter .K-SpectrumObjInserter-InfoLabel
+{
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 10;
 }
 
 .K-Chem-ComposerDialog .K-Chem-Composer

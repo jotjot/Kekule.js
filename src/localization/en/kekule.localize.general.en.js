@@ -28,6 +28,11 @@ Kekule.Localization.addResource('en', 'Texts', {
 Kekule.Localization.addResource('en', 'ErrorMsg', {
 	MODULE_NOT_LOADED: 'Module {0} is not loaded',
 
+	// core/kekule.metrics.js
+	UNIT_NOT_FOUND: 'Unit not found: {0}',
+	STANDARD_UNIT_OF_CATEGORY_NOT_FOUND: 'Standard unit of category {0} not found',
+	UNABLE_TO_CONVERT_BETWEEN_UNITS: 'Unable to convert between units {0} and {1}',
+
 	// utils/kekule.utils.js
 	NON_OWN_PROPERTY_CANNOT_BE_REPLACED: 'Only directly owned property of object can be replaced',
 	// utils/kekule.domHelper.js
@@ -123,6 +128,28 @@ Kekule.Localization.addResource('en', 'ErrorMsg', {
 	JSON_SERIALIZER_NOT_EXISTS: 'Serializer for JSON not exists',
 	XML_SERIALIZER_NOT_EXISTS: 'Serializer for XML not exists',
 
+	// io/jcamp/kekule.io.jcamp.base.js
+	JCAMP_DATA_WITHOUT_TITLE_LINE: 'Malformed JCAMP format data, not started with TITLE label',
+	JCAMP_OTHER_LABEL_BEFORE_TITLE_LINE: 'Malformed JCAMP format data, other labels before the TITLE label',
+	JCAMP_MORE_THAN_ONE_ROOT_BLOCK: 'Malformed JCAMP format data, root block not unique',
+	JCAMP_MORE_THAN_TWO_NEST_LEVEL: 'Malformed JCAMP format data, block nested level should not exceed 2',
+	JCAMP_ASDF_FORMAT_ERROR_WITH_STR: 'Malformed JCAMP ASDF String: {0}',
+	JCAMP_DATA_TABLE_X_VALUE_CHECK_ERROR: 'JCAMP data table X value check failed!',
+	JCAMP_DATA_TABLE_Y_VALUE_CHECK_ERROR: 'JCAMP data table Y value check failed!',
+	JCAMP_DATA_TABLE_VALUE_FIRST_LAST_NOT_MATCH: 'JCAMP data table first/last values not match',
+	JCAMP_DATA_TABLE_VAR_LIST_FORMAT_ERROR: 'Malformed JCAMP variable list format: {0}',
+	JCAMP_DATA_TABLE_VAR_LIST_FORMAT_UNSUPPORTED: 'Unsupported JCAMP variable list format: {0}',
+	JCAMP_NTUPLES_BEGIN_END_NAME_NOT_MATCH: 'Ntuples name not match in begin/end labels: {0} and {1}',
+	JCAMP_NTUPLES_PAGE_DECLARATION_FORMAT_ERROR: 'Malformed JCAMP ntuples page declaration: {0}',
+	// io/jcamp/kekule.io.jcamp.dx.js
+	JCAMP_LDR_TARGET_UNIT_NOT_MATCH_WITH_DETAIL: 'The unit of property {0} ({1}) can not be converted to the request one ({2}) for JCAMP {3} LDR',
+	FAILED_TO_ASSIGN_SYMBOL_TO_VARIABLE: 'Fail to assign a symbol to variable {0}',
+	// io/jcamp/kekule.io.jcamp.cs.js
+	JCAMP_IMPLICIT_HYDROGEN_COUNT_NOT_MATCH_DETAIL: 'Unmatched implicit hydrogen count for atom {0}({1}), expect {2} but found {3}',
+	// spectroscopy/kekule.spectrum.render.js
+	VISIBLE_DATA_RANGE_IS_EMPTY: 'The visible range of data is empty, unable to draw the spectrum',
+
+
 	/*
 	// render/2d/kekule.render.def2DRenderer.js
 	CAN_NOT_REMOVE_INDIVIDUAL_ELEM: 'Unable to remove individual element on context',
@@ -143,6 +170,14 @@ Kekule.Localization.addResource('en', 'ErrorMsg', {
 	LIB_THREE_JS_NOT_LOADED: 'Three.js not loaded, can not render 3D context',
 	BROWSER_3D_DRAWING_NOT_SUPPORTED: 'It seems that your web browser is not modern enough to support the 3D drawing function. Please update it.',
 	*/
+	THREEJS_LIB_NOT_UNAVAILABLE: 'Three.js not available, try to include it through the <script> tag or import the module by Kekule.externalResourceManager.register method',
+	THREEJS_DRAWING_NOT_UNAVAILABLE: 'Webgl, Canvas or SVG is not supported in this browser, please upgrade to a modern one',
+
+	// render/2d/kekule.render.canvasRenderer.js
+	CANVAS2D_NOT_UNAVAILABLE: 'Canvas is not supported in this browser, please upgrade to a modern one',
+	// render/2d/kekule.render.raphaelRenderer.js
+	RAPHAEL_LIB_NOT_UNAVAILABLE: 'Raphael.js not available, try to import it through the <script> tag',
+	RAPHAEL_SVG_VML_UNAVAILABLE: 'SVG or VML is not supported in this browser, please upgrade to a modern one',
 
 	// html/kekule.autoLaunchers.js
 	//MIMETYPE_NOT_SET: 'MIME type not set for resource'

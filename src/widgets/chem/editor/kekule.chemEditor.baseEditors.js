@@ -196,9 +196,29 @@ Kekule.globalOptions.add('chemWidget.editor.issueChecker', {
  * @name Kekule.Editor.BaseEditor#hoverOnObjs
  * @event
  */
-	/**
+/**
  * Invoked when the selection in editor has been changed.
  * @name Kekule.Editor.BaseEditor#selectionChange
+ * @event
+ */
+/**
+ * Invoked when user begin to do manipulation in the editor.
+ * @name Kekule.Editor.BaseEditor#beginManipulateObject
+ * @event
+ */
+/**
+ * Invoked when the user manipulation (add new objects, move, rotate...) ends in the editor.
+ * This event is a safe and effective opportunity to retrieve the changes in editor.
+ * Note: operation undo/redo will change the object inside editor but will not evoke this event.
+ * @name Kekule.Editor.BaseEditor#endManipulateObject
+ * @event
+ */
+/**
+ * Invoked when the user modification to chem object ends in the editor.
+ * This event occurs when manipulation done or operation undone/redone.
+ * It is a safe and effective opportunity to retrieve the changes in editor.
+ * Note: operation undo/redo will change the object inside editor and will also evoke this event.
+ * @name Kekule.Editor.BaseEditor#userModificationDone
  * @event
  */
 /**
@@ -287,7 +307,8 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 		this.setPropStoreFieldValue('editorConfigs', editorConfigs || this.createDefaultConfigs());
 		//this.setPropStoreFieldValue('uiMarkers', []);
 		//this.setEnableGesture(true);
-		this.setEnableGesture(getOptionValue('chemWidget.editor.enableGesture', true));
+		if (Kekule.ObjUtils.isUnset(this.getEnableGesture()))
+			this.setEnableGesture(getOptionValue('chemWidget.editor.enableGesture', true));
 	},
 	/** @private */
 	initProperties: function()
@@ -566,7 +587,7 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 					}
 					else
 					{
-						this.startObservingGestureEvents(this.OBSERVING_GESTURES);
+						this.stopObservingGestureEvents(this.OBSERVING_GESTURES);
 					}
 				}
 			}
@@ -643,8 +664,9 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 			'getter': function()
 			{
 				var result = this.getPropStoreFieldValue('uiDrawBridge');
-				if (!result)
+				if (!result && !this.__$uiDrawBridgeInitialized$__)
 				{
+					this.__$uiDrawBridgeInitialized$__ = true;
 					result = this.createUiDrawBridge();
 					this.setPropStoreFieldValue('uiDrawBridge', result);
 				}
@@ -975,28 +997,34 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 	/**
 	 * Zoom in.
 	 */
+	/*
 	zoomIn: function(step, zoomCenterCoord)
 	{
 		var curr = this.getCurrZoom();
 		var ratio = Kekule.ZoomUtils.getNextZoomInRatio(curr, step || 1);
 		return this.zoomTo(ratio, null, zoomCenterCoord);
 	},
+	*/
 	/**
 	 * Zoom out.
 	 */
+	/*
 	zoomOut: function(step, zoomCenterCoord)
 	{
 		var curr = this.getCurrZoom();
 		var ratio = Kekule.ZoomUtils.getNextZoomOutRatio(curr, step || 1);
 		return this.zoomTo(ratio, null, zoomCenterCoord);
 	},
+	*/
 	/**
 	 * Reset to normal size.
 	 */
+	/*
 	resetZoom: function(zoomCenterCoord)
 	{
 		return this.zoomTo(this.getInitialZoom() || 1, null, zoomCenterCoord);
 	},
+	*/
 
 	/**
 	 * Change the size of client element.
@@ -1154,40 +1182,43 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 		*/
 		var result = this.tryApplySuper('repaint', [ops])  /* $super(ops) */;
 
-		// after paint the new obj the first time, save up the transform params (especially the translates)
-		if (!this._initialRenderTransformParams)
+		if (this.isRenderable())
 		{
-			this._initialRenderTransformParams = this.getPainter().getActualInitialRenderTransformOptions(this.getObjContext());
-			/*
-			if (transParam)
+			// after paint the new obj the first time, save up the transform params (especially the translates)
+			if (!this._initialRenderTransformParams)
 			{
-				var trans = {}
-				var unitLength = transParam.unitLength || 1;
-				if (Kekule.ObjUtils.notUnset(transParam.translateX))
-					trans.translateX = transParam.translateX / unitLength;
-				if (Kekule.ObjUtils.notUnset(transParam.translateY))
-					trans.translateY = transParam.translateY / unitLength;
-				if (Kekule.ObjUtils.notUnset(transParam.translateZ))
-					trans.translateZ = transParam.translateZ / unitLength;
+				this._initialRenderTransformParams = this.getPainter().getActualInitialRenderTransformOptions(this.getObjContext());
+				/*
+				if (transParam)
+				{
+					var trans = {}
+					var unitLength = transParam.unitLength || 1;
+					if (Kekule.ObjUtils.notUnset(transParam.translateX))
+						trans.translateX = transParam.translateX / unitLength;
+					if (Kekule.ObjUtils.notUnset(transParam.translateY))
+						trans.translateY = transParam.translateY / unitLength;
+					if (Kekule.ObjUtils.notUnset(transParam.translateZ))
+						trans.translateZ = transParam.translateZ / unitLength;
 
-				if (transParam.center)
-					trans.center = transParam.center;
+					if (transParam.center)
+						trans.center = transParam.center;
 
-				//var zoom = transParam.zoom || 1;
-				var zoom = 1;
+					//var zoom = transParam.zoom || 1;
+					var zoom = 1;
 
-				trans.scaleX = transParam.scaleX / zoom;
-				trans.scaleY = transParam.scaleY / zoom;
-				trans.scaleZ = transParam.scaleZ / zoom;
+					trans.scaleX = transParam.scaleX / zoom;
+					trans.scaleY = transParam.scaleY / zoom;
+					trans.scaleZ = transParam.scaleZ / zoom;
 
-				this._initialRenderTransformParams = trans;
-				console.log(this._initialRenderTransformParams, this);
+					this._initialRenderTransformParams = trans;
+					console.log(this._initialRenderTransformParams, this);
+				}
+				*/
 			}
-			*/
-		}
 
-		// redraw ui markers
-		this.recalcUiMarkers();
+			// redraw ui markers
+			this.recalcUiMarkers();
+		}
 
 		return result;
 	},
@@ -1457,7 +1488,10 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 		var result = Kekule.Render.DrawBridge2DMananger.getPreferredBridgeInstance();
 		if (!result)   // can not find suitable draw bridge
 		{
-			Kekule.error(/*Kekule.ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED*/Kekule.$L('ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED'));
+			//Kekule.error(Kekule.$L('ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED'));
+			var errorMsg = Kekule.Render.DrawBridge2DMananger.getUnavailableMessage() || Kekule.error(Kekule.$L('ErrorMsg.DRAW_BRIDGE_NOT_SUPPORTED'));
+			if (errorMsg)
+				this.reportException(errorMsg, Kekule.ExceptionLevel.NOT_FATAL_ERROR);
 		}
 		return result;
 	},
@@ -1682,11 +1716,13 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 	reactOperHistoryUndo: function(e)
 	{
 		this.invokeEvent('operUndo', e);
+		this.notifyUserModificationDone();
 	},
 	/** @private */
 	reactOperHistoryRedo: function(e)
 	{
 		this.invokeEvent('operRedo', e);
+		this.notifyUserModificationDone();
 	},
 	reactOperHistoryClear: function(e)
 	{
@@ -1959,6 +1995,7 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 		//console.log('[MANIPULATE END]');
 		this.setOperationsInCurrManipulation([]);
 		this.invokeEvent('endManipulateObject'/*, {'details': Object.extend({}, this._updatedObjectDetails)}*/);
+		this.notifyUserModificationDone();
 	},
 
 	/**
@@ -2012,6 +2049,16 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 			return null;
 	},
 	*/
+
+	/**
+	 * Notify the user modification has been done.
+	 * This method should be called on every user manipulation/modification ends.
+	 * @private
+	 */
+	notifyUserModificationDone: function()
+	{
+		this.invokeEvent('userModificationDone');
+	},
 
 	/** @private */
 	_needToCanonicalizeBeforeSaving: function()
@@ -2268,36 +2315,7 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 
 		return actualValue;
 	},
-	/** @private */
-	clearBoundMap: function()
-	{
-		this.getBoundInfoRecorder().clear(this.getObjContext());
-	},
-	/**
-	 * Returns topmost bound item in z-index.
-	 * Descendants may override this method to implement more accurate algorithm.
-	 * @param {Array} boundItems
-	 * @param {Array} excludeObjs Objects in this array will not be returned.
-	 * @returns {Object}
-	 * @private
-	 */
-	findTopmostBoundInfo: function(boundItems, excludeObjs)
-	{
-		if (boundItems && boundItems.length)
-		{
-			var result = null;
-			var index = boundItems.length - 1;
-			result = boundItems[index];
-			while ((index >= 0) && (excludeObjs && (excludeObjs.indexOf(result.obj) >= 0)))
-			{
-				--index;
-				result = boundItems[index];
-			}
-			return result;
-		}
-		else
-			return null;
-	},
+
 	/**
 	 * Returns all bound map item at x/y.
 	 * Input coord is based on the screen coord system.
@@ -2310,6 +2328,9 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 		if (!boundInflation)
 			throw 'boundInflation not set!';
 		*/
+		var delta = boundInflation || this.getCurrBoundInflation() || this.getEditorConfigs().getInteractionConfigs().getObjBoundTrackMinInflation();
+		return this.tryApplySuper('getBoundInfosAtCoord', [screenCoord, filterFunc, delta]);
+		/*
 		var boundRecorder = this.getBoundInfoRecorder();
 		var delta = boundInflation || this.getCurrBoundInflation() || this.getEditorConfigs().getInteractionConfigs().getObjBoundTrackMinInflation();
 		//var coord = this.getObjDrawBridge().transformScreenCoordToContext(this.getObjContext(), screenCoord);
@@ -2318,6 +2339,7 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 		//console.log(coord, delta);
 		var matchedInfos = boundRecorder.getIntersectionInfos(this.getObjContext(), coord, refCoord, delta, filterFunc);
 		return matchedInfos;
+		*/
 	},
 	/**
 	 * returns the topmost bound map item at x/y.
@@ -2330,7 +2352,8 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 	{
 		var enableTrackNearest = this.getEditorConfigs().getInteractionConfigs().getEnableTrackOnNearest();
 		if (!enableTrackNearest)
-			return this.findTopmostBoundInfo(this.getBoundInfosAtCoord(screenCoord, null, boundInflation), excludeObjs, boundInflation);
+			//return this.findTopmostBoundInfo(this.getBoundInfosAtCoord(screenCoord, null, boundInflation), excludeObjs, boundInflation);
+			return this.tryApplySuper('getTopmostBoundInfoAtCoord', [screenCoord, excludeObjs, boundInflation]);
 		// else, track on nearest
 		// new approach, find nearest boundInfo at coord
 		var SU = Kekule.Render.MetaShapeUtils;
@@ -2570,16 +2593,18 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 	recalcUiMarkers: function()
 	{
 		//this.setHotTrackedObj(null);
-		this.beginUpdateUiMarkers();
-		try
+		if (this.getUiDrawBridge())
 		{
-			this.recalcHotTrackMarker();
-			this.recalcSelectionAreaMarker();
-			this.recalcIssueCheckUiMarkers();
-		}
-		finally
-		{
-			this.endUpdateUiMarkers();
+			this.beginUpdateUiMarkers();
+			try
+			{
+				this.recalcHotTrackMarker();
+				this.recalcSelectionAreaMarker();
+				this.recalcIssueCheckUiMarkers();
+			} finally
+			{
+				this.endUpdateUiMarkers();
+			}
 		}
 	},
 	/** @private */
@@ -2587,9 +2612,12 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 	{
 		if (this.isUpdatingUiMarkers())
 			return;
-		this.clearUiContext();
-		var drawParams = this.calcDrawParams();
-		this.getUiPainter().draw(this.getUiContext(), drawParams.baseCoord, drawParams.drawOptions);
+		if (this.getUiDrawBridge() && this.getUiContext())
+		{
+			this.clearUiContext();
+			var drawParams = this.calcDrawParams();
+			this.getUiPainter().draw(this.getUiContext(), drawParams.baseCoord, drawParams.drawOptions);
+		}
 	},
 	/**
 	 * Create a new marker based on shapeInfo.
@@ -4062,7 +4090,7 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 	 */
 	removeFromSelection: function(param)
 	{
-		if (!param || !param.length)
+		if (!param /* || !param.length*/)
 			return;
 		var objs = DataType.isArrayValue(param)? param: [param];
 		this.beginUpdateSelection();
@@ -4667,12 +4695,13 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 	},
 
 	// Coord translate methods
-	/**
+	/*
 	 * Translate coord to value of another coord system.
 	 * @param {Hash} coord
 	 * @param {Int} fromSys
 	 * @param {Int} toSys
 	 */
+	/*
 	translateCoord: function(coord, fromSys, toSys)
 	{
 		if (!coord)
@@ -4683,41 +4712,43 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 			if (toSys === S.SCREEN)
 				return coord;
 			else if (toSys === S.CONTEXT)
-				return this.getObjDrawBridge().transformScreenCoordToContext(this.getObjContext(), coord);
+				return this.getObjDrawBridge()? this.getObjDrawBridge().transformScreenCoordToContext(this.getObjContext(), coord): coord;
 			else  // S.OBJ
 			{
-				var contextCoord = this.getObjDrawBridge().transformScreenCoordToContext(this.getObjContext(), coord);
-				return this.getRootRenderer().transformCoordToObj(this.getObjContext(), this.getChemObj(), contextCoord);
+				var contextCoord = this.getObjDrawBridge()? this.getObjDrawBridge().transformScreenCoordToContext(this.getObjContext(), coord): coord;
+				return this.getObjContext()? this.getRootRenderer().transformCoordToObj(this.getObjContext(), this.getChemObj(), contextCoord): coord;
 			}
 		}
 		else if (fromSys === S.CONTEXT)
 		{
 			if (toSys === S.SCREEN)
-				return this.getObjDrawBridge().transformContextCoordToScreen(this.getObjContext(), coord);
+				return this.getObjDrawBridge()? this.getObjDrawBridge().transformContextCoordToScreen(this.getObjContext(), coord): coord;
 			else if (toSys === S.CONTEXT)
 				return coord;
 			else  // S.OBJ
-				return this.getRootRenderer().transformCoordToObj(this.getObjContext(), this.getChemObj(), coord);
+				return this.getObjContext()? this.getRootRenderer().transformCoordToObj(this.getObjContext(), this.getChemObj(), coord): coord;
 		}
 		else  // fromSys === S.OBJ
 		{
 			if (toSys === S.SCREEN)
 			{
 				var contextCoord = this.getRootRenderer().transformCoordToContext(this.getObjContext(), this.getChemObj(), coord);
-				return this.getObjDrawBridge().transformContextCoordToScreen(this.getObjContext(), contextCoord);
+				return this.getObjDrawBridge()? this.getObjDrawBridge().transformContextCoordToScreen(this.getObjContext(), contextCoord): coord;
 			}
 			else if (toSys === S.CONTEXT)
-				return this.getRootRenderer().transformCoordToContext(this.getObjContext(), this.getChemObj(), coord);
+				return this.getObjContext()? this.getRootRenderer().transformCoordToContext(this.getObjContext(), this.getChemObj(), coord): coord;
 			else  // S.OBJ
 				return coord;
 		}
 	},
-	/**
+	*/
+	/*
 	 * Translate a distance value to a distance in another coord system.
 	 * @param {Hash} coord
 	 * @param {Int} fromSys
 	 * @param {Int} toSys
 	 */
+	/*
 	translateDistance: function(distance, fromSys, toSys)
 	{
 		var coord0 = {'x': 0, 'y': 0, 'z': 0};
@@ -4726,7 +4757,7 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 		var transCoord1 = this.translateCoord(coord1, fromSys, toSys);
 		return Kekule.CoordUtils.getDistance(transCoord0, transCoord1);
 	},
-
+	*/
 	/**
 	 * Transform sizes and coords of objects based on coord sys of current editor.
 	 * @param {Array} objects
@@ -4764,79 +4795,86 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 	 * @param {Hash} objCoord
 	 * @returns {Hash}
 	 */
+	/*
 	objCoordToContext: function(objCoord)
 	{
 		var S = Kekule.Editor.CoordSys;
 		return this.translateCoord(objCoord, S.OBJ, S.CONTEXT);
 	},
-	/**
+	*/
+	/*
 	 * Turn context coord to obj one.
 	 * @param {Hash} contextCoord
 	 * @returns {Hash}
 	 */
+	/*
 	contextCoordToObj: function(contextCoord)
 	{
 		var S = Kekule.Editor.CoordSys;
 		return this.translateCoord(contextCoord, S.CONTEXT, S.OBJ);
 	},
+	*/
 	/*
 	 * Turn obj coord to screen one.
 	 * @param {Hash} objCoord
 	 * @returns {Hash}
 	 */
+	/*
 	objCoordToScreen: function(objCoord)
 	{
 		var S = Kekule.Editor.CoordSys;
 		return this.translateCoord(objCoord, S.OBJ, S.SCREEN);
 	},
-	/**
+	*/
+	/*
 	 * Turn screen coord to obj one.
 	 * @param {Hash} contextCoord
 	 * @returns {Hash}
 	 */
+	/*
 	screenCoordToObj: function(screenCoord)
 	{
 		var S = Kekule.Editor.CoordSys;
 		return this.translateCoord(screenCoord, S.SCREEN, S.OBJ);
 	},
-
-	/**
+	*/
+	/*
 	 * Turn screen based coord to context one.
 	 * @param {Hash} screenCoord
 	 * @returns {Hash}
 	 */
+	/*
 	screenCoordToContext: function(screenCoord)
 	{
-		/*
-		var coord = this.getObjDrawBridge().transformScreenCoordToContext(this.getObjContext(), screenCoord);
-		return coord;
-		*/
 		var S = Kekule.Editor.CoordSys;
 		return this.translateCoord(screenCoord, S.SCREEN, S.CONTEXT);
 	},
-	/**
+	*/
+	/*
 	 * Turn context based coord to screen one.
 	 * @param {Hash} screenCoord
 	 * @returns {Hash}
 	 */
+	/*
 	contextCoordToScreen: function(screenCoord)
 	{
 		var S = Kekule.Editor.CoordSys;
 		return this.translateCoord(screenCoord, S.CONTEXT, S.SCREEN);
 	},
-
-	/**
+	*/
+	/*
 	 * Turn box coords based on screen system to context one.
 	 * @param {Hash} screenCoord
 	 * @returns {Hash}
 	 */
+	/*
 	screenBoxToContext: function(screenBox)
 	{
 		var coord1 = this.screenCoordToContext({'x': screenBox.x1, 'y': screenBox.y1});
 		var coord2 = this.screenCoordToContext({'x': screenBox.x2, 'y': screenBox.y2});
 		return {'x1': coord1.x, 'y1': coord1.y, 'x2': coord2.x, 'y2': coord2.y};
 	},
-
+	*/
 	///////////////////////////////////////////////////////
 
 	/**
@@ -5474,7 +5512,7 @@ Kekule.Editor.BaseEditor = Class.create(Kekule.ChemWidget.ChemObjDisplayer,
 		if (['pointerdown', 'pointermove', 'pointerup'].indexOf(evType) >= 0)
 		{
 			this.setCurrPointerType(e.pointerType);
-			if (evType === 'pointermove')
+			if (evType === 'pointermove' && this.isRenderable())
 			{
 				var coord = this._getEventMouseCoord(e, this.getCoreElement());  // coord based on editor client element
 				var hoveredObjs = this.getBasicObjectsAtCoord(coord, this.getCurrBoundInflation()) || [];
@@ -6468,6 +6506,7 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 			'getter': function() { return this.getActivePointerType(); },
 			'setter': function(value) { this.setActivePointerType(value); }
 		});  // private, alias of property activePointerType
+		this.defineProp('activePointerId', {'dataType': DataType.INT, 'serializable': false});  // private, the pointer id currently activated in editpr
 
 		//this.defineProp('manipulateOperation', {'dataType': 'Kekule.MacroOperation', 'serializable': false});  // store operation of moving
 		//this.defineProp('activeOperation', {'dataType': 'Kekule.MacroOperation', 'serializable': false}); // store operation that should be add to history
@@ -7429,11 +7468,16 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 	{
 		var C = Kekule.CoordUtils;
 		var newInfoMap = this.getManipulateObjCurrInfoMap();
+		var editor = this.getEditor();
 
 		var isMovingOneStickNode = this._isManipulatingSingleStickedObj(manipulatingObjs);
 
 		var isDirectManipulateSingleObj = this.isDirectManipulating() && (manipulatingObjs.length === 1);
-		var followPointerCoord = isDirectManipulateSingleObj && this.getEditorConfigs().getInteractionConfigs().getFollowPointerCoordOnDirectManipulatingSingleObj();
+		var manipulatingObjHasSize = isDirectManipulateSingleObj?
+			(manipulatingObjs[0] && manipulatingObjs[0].getSizeOfMode && manipulatingObjs[0].getSizeOfMode(editor.getCoordMode(), editor.getAllowCoordBorrow())):
+			true;
+		var followPointerCoord = isDirectManipulateSingleObj && !manipulatingObjHasSize   // when the object has size, it can not follow the pointer coord
+			&& this.getEditorConfigs().getInteractionConfigs().getFollowPointerCoordOnDirectManipulatingSingleObj();
 		if (followPointerCoord)
 		{
 			var startCoord = this.getStartCoord();
@@ -7687,6 +7731,8 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 	/** @ignore */
 	doTestMouseCursor: function(coord, e)
 	{
+		if (!this.getEditor().isRenderable())  // if chem object not painted, do not need to test
+			return '';
 		var result = '';
 		// since client element is not the same to widget element, coord need to be recalculated
 		var c = this._getEventMouseCoord(e, this.getEditor().getEditClientElem());
@@ -7832,27 +7878,14 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 
 		var evokedByTouch = e && e.pointerType === 'touch'; // edge resize/rotate will be disabled in touch
 		if (e)
+		{
 			this.setManipulationPointerType(e && e.pointerType);
+		}
 
 		this.manipulateBegin();
 
 		this.setBaseCoord(currCoord);
 		this.setStartCoord(currCoord);
-
-		// check if mouse just on an object, if so, direct manipulation mode
-		var hoveredObj = this.getEditor().getTopmostBasicObjectAtCoord(currCoord, this.getCurrBoundInflation());
-		if (hoveredObj && !evokedByTouch)  // mouse down directly on a object
-		{
-			//hoveredObj = hoveredObj.getNearestSelectableObject();
-			if (this.isInAncestorSelectMode())
-				hoveredObj = this.getStandaloneAncestor(hoveredObj);
-			hoveredObj = hoveredObj.getNearestMovableObject();
-			if (this.getEnableMove())
-			{
-				this.doStartDirectManipulate(null, hoveredObj, currCoord);  // call doStartDirectManipulate rather than startDirectManipulate, avoid calling doStartDirectManipulate twice
-				return;
-			}
-		}
 
 		this._lastTransformParams = null;
 
@@ -7867,6 +7900,7 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 		*/
 		var isTransform = (availManipulationTypes.indexOf(T.TRANSFORM) >= 0)
 				&& (explicitManipulationType === T.TRANSFORM);    // gesture transform
+		//console.log('check isTransform', isTransform, explicitManipulationType, availManipulationTypes);
 		if (!isTransform)
 		{
 			var isResize = !evokedByTouch && (availManipulationTypes.indexOf(T.RESIZE) >= 0) //&& this.getEnableResize()
@@ -7878,7 +7912,26 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 		}
 		else // transform
 		{
+			//console.log('set transform types', availManipulationTypes);
 			this._availTransformTypes = availManipulationTypes;  // stores the available transform types
+		}
+
+		if (!isTransform && !isResize && !isRotate)  // when pointer not at resize or rotate position, check if it is directly on an object to evoke direct manipulation
+		{
+			// check if mouse just on an object, if so, direct manipulation mode
+			var hoveredObj = this.getEditor().getTopmostBasicObjectAtCoord(currCoord, this.getCurrBoundInflation());
+			if (hoveredObj && !evokedByTouch)  // mouse down directly on a object
+			{
+				//hoveredObj = hoveredObj.getNearestSelectableObject();
+				if (this.isInAncestorSelectMode())
+					hoveredObj = this.getStandaloneAncestor(hoveredObj);
+				hoveredObj = hoveredObj.getNearestMovableObject();
+				if (this.getEnableMove())
+				{
+					this.doStartDirectManipulate(null, hoveredObj, currCoord);  // call doStartDirectManipulate rather than startDirectManipulate, avoid calling doStartDirectManipulate twice
+					return;
+				}
+			}
 		}
 
 		// check if already has selection and mouse in selection rect first
@@ -7981,16 +8034,19 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 		var	e = this._manipulationStepBuffer.event;
 		var explicitTransformParams = this._manipulationStepBuffer.explicitTransformParams;
 
-		if (currCoord && e)
+		//console.log('step', this.getState(), this._manipulationStepBuffer.explicitTransformParams);
+
+		if (explicitTransformParams)  // has transform params explicitly in gesture transform
+		{
+			this.doExecManipulationStepWithExplicitTransformParams(explicitTransformParams, this._manipulationStepBuffer);
+		}
+		else if (currCoord && e)
 		{
 			//console.log('do actual manipulate');
 			this.doExecManipulationStep(currCoord, e, this._manipulationStepBuffer);
 			// empty buffer, indicating that the event has been handled
 		}
-		else if (explicitTransformParams)  // has transform params explicitly in gesture transform
-		{
-			this.doExecManipulationStepWithExplicitTransformParams(explicitTransformParams, this._manipulationStepBuffer);
-		}
+
 		this._manipulationStepBuffer.coord = null;
 		this._manipulationStepBuffer.event = null;
 		this._manipulationStepBuffer.explicitTransformParams = null;
@@ -8091,6 +8147,11 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 		{
 			return true;
 		}
+		if (Kekule.ObjUtils.notUnset(this.getActivePointerId()) && e.pointerId !== this.getActivePointerId())
+		{
+			//console.log('hhh', e.pointerId, this.getActivePointerId());
+			return true;
+		}
 
 		var S = Kekule.Editor.BasicManipulationIaController.State;
 		var T = Kekule.Editor.BasicManipulationIaController.ManipulationType;
@@ -8153,6 +8214,7 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 	{
 		this.tryApplySuper('react_pointerdown', [e])  /* $super(e) */;
 		//console.log('pointerdown', e);
+		this.setActivePointerId(e.pointerId);
 		var S = Kekule.Editor.BasicManipulationIaController.State;
 		//var T = Kekule.Editor.BasicManipulationIaController.ManipulationType;
 		if (e.getButton() === Kekule.X.Event.MouseButton.LEFT)
@@ -8223,7 +8285,7 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 			{
 				//var dis = Kekule.CoordUtils.getDistance(startCoord, endCoord);
 				//if (dis <= this.getEditorConfigs().getInteractionConfigs().getUnmovePointerDistanceThreshold())
-				if (Kekule.CoordUtils.isEqual(startCoord, endCoord))  // mouse down and up in same point, not manupulate, just select a object
+				if (startCoord && endCoord && Kekule.CoordUtils.isEqual(startCoord, endCoord))  // mouse down and up in same point, not manupulate, just select a object
 				{
 					if (this.getEnableSelect())
 						this.getEditor().selectOnCoord(startCoord, shifted || this.getEditor().getIsToggleSelectOn());
@@ -8318,13 +8380,22 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 				this._initialGestureTransformParams = {
 					'angle': (event.rotation * Math.PI / 180) || 0
 				};
+				//console.log('begin gesture manipulation', this.getState(), this.getManipulationType());
 				// start a brand new one
 				if (this.getState() !== Kekule.Editor.BasicManipulationIaController.State.MANIPULATING)
+				{
 					this.startManipulation(null, null, Kekule.Editor.BasicManipulationIaController.ManipulationType.TRANSFORM);
+				}
 				else
 				{
 					if (this.getManipulationType() !== Kekule.Editor.BasicManipulationIaController.ManipulationType.TRANSFORM)
-						this.setManipulationType(Kekule.Editor.BasicManipulationIaController.ManipulationType.TRANSFORM);
+					{
+						// the gesture event may be evoked after pointerdown event,
+						// and in pointerdown, a calling to startManipulation without transform may be already called.
+						// So here we force a new manipulation with transform on.
+						//this.setManipulationType(Kekule.Editor.BasicManipulationIaController.ManipulationType.TRANSFORM);
+						this.startManipulation(null, null, Kekule.Editor.BasicManipulationIaController.ManipulationType.TRANSFORM);
+					}
 				}
 			}
 			else
@@ -8395,6 +8466,8 @@ Kekule.Editor.BasicManipulationIaController = Class.create(Kekule.Editor.BaseEdi
 			{
 				rotateAngle = 0;
 			}
+
+			//console.log('here', resizeScales.scaleX, resizeScales.scaleY, rotateAngle, availTransformTypes);
 
 			this.updateManipulationStepBuffer(this._manipulationStepBuffer, {
 				'explicitTransformParams': {

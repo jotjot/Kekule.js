@@ -492,6 +492,8 @@ Kekule.Render.CanvasRendererBridge = Class.create(Kekule.Render.Abstract2DDrawBr
 				if (callback)
 					callback(true);
 				self.doneDraw(context, options);
+				// release img element event handler
+				imgElem.onload = null;
 			}
 			catch(e)
 			{
@@ -519,6 +521,21 @@ Kekule.Render.CanvasRendererBridge = Class.create(Kekule.Render.Abstract2DDrawBr
 			this.isLineDashSupported._cachedValue = (context.setLineDash && (typeof(context.lineDashOffset) == "number"));
 		}
 		return this.isLineDashSupported._cachedValue;
+	},
+	/** @private */
+	setTransformSeq: function(context, transformSeq)
+	{
+		var CU = Kekule.CoordUtils;
+		var MU = Kekule.MatrixUtils;
+		var matrix = MU.createIdentity(3);
+		for (var i = 0, l = transformSeq.length; i < l; ++i)
+		{
+			var transform = transformSeq[i];
+			var t = Object.extend({'rotateAngle': transform.rotate}, transform);
+			var m = CU.calcTransform2DMatrix(t);
+			matrix = MU.multiply(matrix, m);
+		}
+		context.setTransform(matrix[0][0], matrix[1][0], matrix[0][1], matrix[1][1], matrix[0][2], matrix[1][2]);
 	},
 
 	setDrawStyle: function(context, options)
@@ -566,10 +583,18 @@ Kekule.Render.CanvasRendererBridge = Class.create(Kekule.Render.Abstract2DDrawBr
 			context.fillStyle = options.fillColor;
 		else
 			context.fillStyle = 'transparent';
+
 		if (Kekule.ObjUtils.notUnset(options.opacity))
 			context.globalAlpha = options.opacity;
 		else  // default
 			context.globalAlpha = 1;
+
+		if ((options.transforms && options.transforms.length) || options.transform)
+		{
+			this.setTransformSeq(context, options.transforms || [options.transform]);
+		}
+		else
+			context.setTransform(1,0,0,1,0,0);  // reset transform
 	},
 	doneDraw: function(context, options)
 	{
@@ -717,6 +742,7 @@ Kekule.Render.CanvasRendererBridge = Class.create(Kekule.Render.Abstract2DDrawBr
 /**
  * Check if current environment supports HTML canvas.
  * @returns {Bool}
+ * @deprecated
  */
 Kekule.Render.CanvasRendererBridge.isSupported = function()
 {
@@ -727,6 +753,23 @@ Kekule.Render.CanvasRendererBridge.isSupported = function()
 		result = !!document.createElement('canvas').getContext;
 	}
 	return result;
+};
+/**
+ * Returns the availability information of Canvas2D renderer.
+ * @returns {Hash}
+ */
+Kekule.Render.CanvasRendererBridge.getAvailabilityInformation = function()
+{
+	var available = false;
+	var document = Kekule.$jsRoot.document;
+	if (document && document.createElement)
+	{
+		available = !!document.createElement('canvas').getContext;
+	}
+	return {
+		'available': available,
+		'message': !available? Kekule.$L('ErrorMsg.CANVAS2D_NOT_UNAVAILABLE'): null
+	}
 };
 
 //Kekule.ClassUtils.makeSingleton(Kekule.Render.CanvasRendererBridge);
